@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: table-reservation-service
+  profiles:
+    active: dev
+
+server:
+  port: 8080
