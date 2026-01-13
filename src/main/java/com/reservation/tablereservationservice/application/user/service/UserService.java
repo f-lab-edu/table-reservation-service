@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
-import com.reservation.tablereservationservice.global.exception.custom.UserException;
+import com.reservation.tablereservationservice.global.exception.UserException;
 
 import lombok.RequiredArgsConstructor;
 
