@@ -10,10 +10,23 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.reservation.tablereservationservice.global.jwt.JwtAccessDeniedHandler;
+import com.reservation.tablereservationservice.global.jwt.JwtAuthenticationEntryPoint;
+import com.reservation.tablereservationservice.global.jwt.JwtAuthenticationFilter;
+import com.reservation.tablereservationservice.global.jwt.JwtProvider;
+
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+	private final JwtProvider jwtProvider;
+	private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+	private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -23,12 +36,23 @@ public class SecurityConfig {
 			.cors(Customizer.withDefaults())
 			.csrf(AbstractHttpConfigurer::disable)
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+			.exceptionHandling(ex -> ex
+				.authenticationEntryPoint(jwtAuthenticationEntryPoint)
+				.accessDeniedHandler(jwtAccessDeniedHandler)
+			)
+
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers(
 					"/api/users/signup",
 					"/api/users/login"
 				).permitAll()
 				.anyRequest().authenticated()
+			)
+
+			.addFilterBefore(
+				new JwtAuthenticationFilter(jwtProvider, jwtAuthenticationEntryPoint),
+				UsernamePasswordAuthenticationFilter.class
 			);
 
 		return http.build();
