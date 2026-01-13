@@ -8,16 +8,22 @@ import lombok.Getter;
 @Getter
 public class LoginResponseDto {
 
+	private final String email;
+	private final String userRole;
 	private final String accessToken;
 
 	@Builder
-	public LoginResponseDto(String accessToken) {
+	public LoginResponseDto(String email, String userRole, String accessToken) {
+		this.email = email;
+		this.userRole = userRole;
 		this.accessToken = accessToken;
 	}
 
-	public static LoginResponseDto from(LoginResultDto tokenDto) {
+	public static LoginResponseDto from(LoginResultDto dto) {
 		return LoginResponseDto.builder()
-			.accessToken(tokenDto.getAccessToken())
+			.email(dto.getEmail())
+			.userRole(dto.getUserRole())
+			.accessToken(dto.getAccessToken())
 			.build();
 	}
 }
