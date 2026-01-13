@@ -1,5 +1,7 @@
 package com.reservation.tablereservationservice.infrastructure.user.repository;
 
+import java.util.Optional;
+
 import org.springframework.stereotype.Repository;
 
 import com.reservation.tablereservationservice.domain.user.User;
@@ -19,7 +21,7 @@ public class JpaUserRepository implements UserRepository {
 	public User save(User user) {
 
 		UserEntity userEntity = UserMapper.INSTANCE.toEntity(user);
-		UserEntity savedUserEntity =  userEntityRepository.save(userEntity);
+		UserEntity savedUserEntity = userEntityRepository.save(userEntity);
 
 		return UserMapper.INSTANCE.toDomain(savedUserEntity);
 
@@ -33,6 +35,12 @@ public class JpaUserRepository implements UserRepository {
 	@Override
 	public boolean existsByPhone(String phone) {
 		return userEntityRepository.existsByPhone(phone);
+	}
+
+	@Override
+	public Optional<User> findByEmail(String email) {
+		return userEntityRepository.findByEmail(email)
+			.map(UserMapper.INSTANCE::toDomain);
 	}
 
 }

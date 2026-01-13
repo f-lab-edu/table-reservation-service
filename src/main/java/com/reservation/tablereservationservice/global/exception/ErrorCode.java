@@ -15,6 +15,7 @@ public enum ErrorCode {
 
 	// 401 Unauthorized
 	UNAUTHORIZED("인증되지 않은 사용자입니다.", HttpStatus.UNAUTHORIZED),
+	INVALID_ACCESS_TOKEN("유효하지 않은 토큰입니다.", HttpStatus.UNAUTHORIZED),
 	INVALID_PASSWORD("비밀번호가 일치하지 않습니다.", HttpStatus.UNAUTHORIZED),
 	EXPIRED_TOKEN("만료된 토큰입니다.", HttpStatus.UNAUTHORIZED),
 

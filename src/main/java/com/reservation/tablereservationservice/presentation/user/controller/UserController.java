@@ -1,14 +1,17 @@
 package com.reservation.tablereservationservice.presentation.user.controller;
 
-import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.reservation.tablereservationservice.application.user.dto.LoginResultDto;
 import com.reservation.tablereservationservice.application.user.service.UserService;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginRequestDto;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
 import com.reservation.tablereservationservice.presentation.user.dto.SignUpRequestDto;
 import com.reservation.tablereservationservice.presentation.user.dto.SignUpResponseDto;
 
@@ -27,6 +30,20 @@ public class UserController {
 		User user = userService.signUp(signUpRequestDto.toDomain());
 		SignUpResponseDto responseDto = SignUpResponseDto.from(user);
 
-		return ApiResponse.success(HttpStatus.CREATED, "회원 가입 성공", responseDto);
+		return ApiResponse.success("회원 가입 성공", responseDto);
+	}
+
+	@PostMapping("/login")
+	public ApiResponse<LoginResponseDto> login(@Valid @RequestBody LoginRequestDto loginRequestDto) {
+		LoginResultDto result = userService.login(loginRequestDto.getEmail(), loginRequestDto.getPassword());
+		LoginResponseDto responseDto = LoginResponseDto.from(result);
+
+		return ApiResponse.success("로그인 성공", responseDto);
+	}
+
+	@GetMapping("/health")
+	public ApiResponse<Boolean> health() {
+		// 토큰 만료 임시 테스트용
+		return ApiResponse.success("서비스 정상 작동", true);
 	}
 }
