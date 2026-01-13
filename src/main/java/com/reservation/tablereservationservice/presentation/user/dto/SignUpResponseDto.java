@@ -5,19 +5,15 @@ import com.reservation.tablereservationservice.domain.user.UserRole;
 
 import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
-import lombok.ToString;
 
 @Getter
-@Setter
-@ToString
 public class SignUpResponseDto {
 
-	private Long userId;
-	private String email;
-	private String name;
-	private String phone;
-	private UserRole userRole;
+	private final Long userId;
+	private final String email;
+	private final String name;
+	private final String phone;
+	private final UserRole userRole;
 
 	@Builder
 	public SignUpResponseDto(Long userId, String email, String name, String phone, UserRole userRole) {

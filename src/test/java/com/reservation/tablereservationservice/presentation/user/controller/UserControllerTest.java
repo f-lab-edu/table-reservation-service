@@ -32,8 +32,9 @@ class UserControllerTest {
 	private UserService userService;
 
 	@Test
-	@DisplayName("회원가입 요청 DTO 검증 실패 시 400 응답 반환")
+	@DisplayName("회원가입 요청 DTO 검증 실패 시 상세 에러 메시지 포함 400 응답 반환")
 	void signUp_InvalidRequestDto_ReturnsBadRequest() throws Exception {
+		// given
 		String invalidJson = """
 			{
 			  "email": "not-email",
@@ -44,12 +45,19 @@ class UserControllerTest {
 			}
 			""";
 
+		// when & then
 		mockMvc.perform(post("/api/users/signup")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(invalidJson))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value(400))
-			.andExpect(jsonPath("$.message").value(ErrorCode.INVALID_INPUT_VALUE.getMessage()));
+			.andExpect(jsonPath("$.message").value(ErrorCode.INVALID_INPUT_VALUE.getMessage()))
+
+			// 구체적인 필드 에러 메시지 검증 (SignUpRequestDto에 정의한 메시지들)
+			.andExpect(jsonPath("$.data.email").value("이메일 형식이 올바르지 않습니다."))
+			.andExpect(jsonPath("$.data.password").value("비밀번호는 8~20자의 영문 대소문자, 숫자, 특수문자를 포함해야 합니다."))
+			.andExpect(jsonPath("$.data.name").value("이름은 8자 이하로 입력해야 합니다."))
+			.andExpect(jsonPath("$.data.userRole").value("userRole은 CUSTOMER 또는 OWNER여야 합니다."));
 	}
 
 	@Test
