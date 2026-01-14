@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.reservation.tablereservationservice.application.user.dto.LoginResultDto;
 import com.reservation.tablereservationservice.application.user.service.UserService;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
@@ -58,6 +59,9 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.data.password").value("비밀번호는 8~20자의 영문 대소문자, 숫자, 특수문자를 포함해야 합니다."))
 			.andExpect(jsonPath("$.data.name").value("이름은 8자 이하로 입력해야 합니다."))
 			.andExpect(jsonPath("$.data.userRole").value("userRole은 CUSTOMER 또는 OWNER여야 합니다."));
+
+		// DTO 검증에서 막혔으니 서비스 호출 안되는지 검증
+		then(userService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -107,4 +111,80 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.code").value(409))
 			.andExpect(jsonPath("$.message").value(ErrorCode.DUPLICATE_PHONE.getMessage()));
 	}
+
+	@Test
+	@DisplayName("로그인 성공 시 200 + accessToken 응답 반환")
+	void login_Success_ReturnsOkWithToken() throws Exception {
+		// given
+		String validJson = """
+			{
+			  "email": "test@email.com",
+			  "password": "Abcd1234!"
+			}
+			""";
+
+		LoginResultDto result = LoginResultDto.builder()
+			.accessToken("access.token.value")
+			.build();
+
+		given(userService.login(eq("test@email.com"), eq("Abcd1234!")))
+			.willReturn(result);
+
+		// when & then
+		mockMvc.perform(post("/api/users/login")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(validJson))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value(200))
+			.andExpect(jsonPath("$.message").value("로그인 성공"))
+			.andExpect(jsonPath("$.data.accessToken").value("access.token.value"));
+
+	}
+
+	@Test
+	@DisplayName("로그인 요청 DTO 검증 실패 시 400 응답 반환")
+	void login_InvalidRequestDto_ReturnsBadRequest() throws Exception {
+		// given: email 형식 오류 + password 공백
+		String invalidJson = """
+			{
+			  "email": "not-email",
+			  "password": ""
+			}
+			""";
+
+		// when & then
+		mockMvc.perform(post("/api/users/login")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(invalidJson))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value(400))
+			.andExpect(jsonPath("$.message").value(ErrorCode.INVALID_INPUT_VALUE.getMessage()));
+
+		// DTO 검증에서 막혔으니 서비스 호출 안되는지 검증
+		then(userService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("로그인 실패 - 비밀번호 불일치면 401 응답 반환")
+	void login_InvalidPassword_ReturnsUnauthorized() throws Exception {
+		// given
+		String validJson = """
+			{
+			  "email": "test@email.com",
+			  "password": "wrongPassword!"
+			}
+			""";
+
+		given(userService.login(eq("test@email.com"), eq("wrongPassword!")))
+			.willThrow(new UserException(ErrorCode.INVALID_PASSWORD));
+
+		// when & then
+		mockMvc.perform(post("/api/users/login")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(validJson))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value(401))
+			.andExpect(jsonPath("$.message").value(ErrorCode.INVALID_PASSWORD.getMessage()));
+	}
+
 }
