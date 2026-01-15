@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.presentation.user.controller;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,6 +12,7 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
 import com.reservation.tablereservationservice.presentation.user.dto.LoginRequestDto;
 import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginUserResponseDto;
 import com.reservation.tablereservationservice.presentation.user.dto.SignUpRequestDto;
 import com.reservation.tablereservationservice.presentation.user.dto.SignUpResponseDto;
 
@@ -39,9 +41,10 @@ public class UserController {
 		return ApiResponse.success("로그인 성공", responseDto);
 	}
 
-	@GetMapping("/health")
-	public ApiResponse<Boolean> health() {
-		// 토큰 만료 임시 테스트용
-		return ApiResponse.success("서비스 정상 작동", true);
+	@GetMapping("/me")
+	public ApiResponse<LoginUserResponseDto> getLoginUser(@AuthenticationPrincipal String email) {
+		LoginUserResponseDto responseDto = userService.getCurrentUser(email);
+
+		return ApiResponse.success("사용자 정보 조회 성공", responseDto);
 	}
 }

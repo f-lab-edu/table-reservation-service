@@ -10,6 +10,7 @@ import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.global.jwt.JwtProvider;
 import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginUserResponseDto;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,6 +46,18 @@ public class UserService {
 		return LoginResponseDto.builder()
 			.email(user.getEmail())
 			.accessToken(accessToken)
+			.userRole(user.getUserRole().name())
+			.build();
+	}
+
+	public LoginUserResponseDto getCurrentUser(String email) {
+		User user = userRepository.findByEmail(email)
+			.orElseThrow(() -> new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
+
+		return LoginUserResponseDto.builder()
+			.userId(user.getUserId())
+			.email(user.getEmail())
+			.name(user.getName())
 			.userRole(user.getUserRole().name())
 			.build();
 	}
