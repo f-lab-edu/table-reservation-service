@@ -14,13 +14,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.reservation.tablereservationservice.application.user.dto.LoginResultDto;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.domain.user.UserRole;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.global.jwt.JwtProvider;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -73,7 +73,8 @@ class UserServiceTest {
 			.isInstanceOf(UserException.class)
 			.satisfies(ex -> {
 				UserException ue = (UserException)ex;
-				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_EMAIL);
+				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_RESOURCE);
+				assertThat(ue.getArgs()).containsExactly("email");
 			});
 
 		verify(userRepository, never()).existsByPhone(anyString());
@@ -94,7 +95,8 @@ class UserServiceTest {
 			.isInstanceOf(UserException.class)
 			.satisfies(ex -> {
 				UserException ue = (UserException)ex;
-				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_PHONE);
+				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_RESOURCE);
+				assertThat(ue.getArgs()).containsExactly("phone");
 			});
 
 		verify(passwordEncoder, never()).encode(anyString());
@@ -117,7 +119,7 @@ class UserServiceTest {
 		given(jwtProvider.createAccessToken(email, UserRole.CUSTOMER)).willReturn(token);
 
 		// when
-		LoginResultDto result = userService.login(email, rawPassword);
+		LoginResponseDto result = userService.login(email, rawPassword);
 
 		// then
 		assertThat(result).isNotNull();
@@ -142,7 +144,7 @@ class UserServiceTest {
 			// 실제로 발생한 예외를 테스트
 			.satisfies(ex -> {
 				UserException ue = (UserException)ex;
-				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
 			});
 
 		verify(passwordEncoder, never()).matches(anyString(), anyString());

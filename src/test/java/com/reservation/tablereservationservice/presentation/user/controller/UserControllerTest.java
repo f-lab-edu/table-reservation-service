@@ -15,11 +15,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.reservation.tablereservationservice.application.user.dto.LoginResultDto;
 import com.reservation.tablereservationservice.application.user.service.UserService;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
 import com.reservation.tablereservationservice.global.exception.UserException;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
 
 @WebMvcTest(UserController.class)
 @Import(GlobalExceptionHandler.class)
@@ -78,14 +78,14 @@ class UserControllerTest {
 			""";
 
 		given(userService.signUp(any()))
-			.willThrow(new UserException(ErrorCode.DUPLICATE_EMAIL));
+			.willThrow(new UserException(ErrorCode.DUPLICATE_RESOURCE, "email"));
 
 		mockMvc.perform(post("/api/users/signup")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validJson))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value(409))
-			.andExpect(jsonPath("$.message").value(ErrorCode.DUPLICATE_EMAIL.getMessage()));
+			.andExpect(jsonPath("$.message").value("email 값이 이미 존재합니다."));
 	}
 
 	@Test
@@ -102,14 +102,14 @@ class UserControllerTest {
 			""";
 
 		given(userService.signUp(any()))
-			.willThrow(new UserException(ErrorCode.DUPLICATE_PHONE));
+			.willThrow(new UserException(ErrorCode.DUPLICATE_RESOURCE, "phone"));
 
 		mockMvc.perform(post("/api/users/signup")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validJson))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value(409))
-			.andExpect(jsonPath("$.message").value(ErrorCode.DUPLICATE_PHONE.getMessage()));
+			.andExpect(jsonPath("$.message").value("phone 값이 이미 존재합니다."));
 	}
 
 	@Test
@@ -123,7 +123,7 @@ class UserControllerTest {
 			}
 			""";
 
-		LoginResultDto result = LoginResultDto.builder()
+		LoginResponseDto result = LoginResponseDto.builder()
 			.accessToken("access.token.value")
 			.build();
 
