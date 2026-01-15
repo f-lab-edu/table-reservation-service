@@ -23,11 +23,10 @@ public enum ErrorCode {
 	ACCESS_DENIED("접근 권한이 없습니다.", HttpStatus.FORBIDDEN),
 
 	// 404 Not Found
-	USER_NOT_FOUND("존재하지 않는 사용자입니다.", HttpStatus.NOT_FOUND),
+	RESOURCE_NOT_FOUND("%s를(을) 찾을 수 없습니다.", HttpStatus.NOT_FOUND),
 
 	// 409 Conflict
-	DUPLICATE_EMAIL("이미 사용 중인 이메일입니다.", HttpStatus.CONFLICT),
-	DUPLICATE_PHONE("이미 등록된 전화번호입니다.", HttpStatus.CONFLICT),
+	DUPLICATE_RESOURCE("%s 값이 이미 존재합니다.", HttpStatus.CONFLICT),
 
 	// 500 Internal Server Error
 	INTERNAL_SERVER_ERROR("서버 내부 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);

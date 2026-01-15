@@ -6,7 +6,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.reservation.tablereservationservice.application.user.dto.LoginResultDto;
 import com.reservation.tablereservationservice.application.user.service.UserService;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
@@ -35,8 +34,7 @@ public class UserController {
 
 	@PostMapping("/login")
 	public ApiResponse<LoginResponseDto> login(@Valid @RequestBody LoginRequestDto loginRequestDto) {
-		LoginResultDto result = userService.login(loginRequestDto.getEmail(), loginRequestDto.getPassword());
-		LoginResponseDto responseDto = LoginResponseDto.from(result);
+		LoginResponseDto responseDto = userService.login(loginRequestDto.getEmail(), loginRequestDto.getPassword());
 
 		return ApiResponse.success("로그인 성공", responseDto);
 	}

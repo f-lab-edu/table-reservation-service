@@ -21,9 +21,11 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
 		ErrorCode errorCode = e.getErrorCode();
 
+		String message = buildMessage(errorCode, e.getArgs());
+
 		return ResponseEntity
 			.status(errorCode.getStatus())
-			.body(ApiResponse.error(errorCode.getStatus(), errorCode.getMessage()));
+			.body(ApiResponse.error(errorCode.getStatus(), message));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
@@ -54,4 +56,20 @@ public class GlobalExceptionHandler {
 			.body(ApiResponse.error(errorCode.getStatus(), errorCode.getMessage()));
 	}
 
+	private String buildMessage(ErrorCode errorCode, Object[] args) {
+		String template = errorCode.getMessage();
+
+		// args가 없으면 템플릿 그대로 반환
+		if (args == null || args.length == 0) {
+			return template;
+		}
+
+		try {
+			return String.format(template, args);
+		} catch (Exception formatException) {
+			log.warn("Failed to format error message. code={}, template={}, args={}",
+				errorCode.name(), template, args, formatException);
+			return template;
+		}
+	}
 }

@@ -1,7 +1,5 @@
 package com.reservation.tablereservationservice.presentation.user.dto;
 
-import com.reservation.tablereservationservice.application.user.dto.LoginResultDto;
-
 import lombok.Builder;
 import lombok.Getter;
 
@@ -19,11 +17,4 @@ public class LoginResponseDto {
 		this.accessToken = accessToken;
 	}
 
-	public static LoginResponseDto from(LoginResultDto dto) {
-		return LoginResponseDto.builder()
-			.email(dto.getEmail())
-			.userRole(dto.getUserRole())
-			.accessToken(dto.getAccessToken())
-			.build();
-	}
 }
