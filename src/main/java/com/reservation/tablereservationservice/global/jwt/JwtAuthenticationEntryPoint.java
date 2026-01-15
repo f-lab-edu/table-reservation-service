@@ -1,6 +1,7 @@
 package com.reservation.tablereservationservice.global.jwt;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
@@ -32,7 +33,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
 		response.setStatus(errorCode.getStatus().value());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
 		ApiResponse<Void> body = ApiResponse.error(errorCode.getStatus(), errorCode.getMessage());
 		response.getWriter().write(objectMapper.writeValueAsString(body));
