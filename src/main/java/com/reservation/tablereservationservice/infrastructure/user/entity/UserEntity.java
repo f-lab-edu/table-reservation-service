@@ -23,23 +23,22 @@ public class UserEntity extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "user_id")
 	private Long userId;
 
-	@Column(name = "user_email", length = 100, nullable = false, unique = true)
+	@Column(length = 100, nullable = false, unique = true)
 	private String email;
 
-	@Column(name = "user_password", nullable = false)
+	@Column(nullable = false)
 	private String password;
 
-	@Column(name = "user_name", length = 50, nullable = false)
+	@Column(length = 50, nullable = false)
 	private String name;
 
-	@Column(name = "user_phone", length = 20, nullable = false, unique = true)
+	@Column(length = 20, nullable = false, unique = true)
 	private String phone;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "user_role", length = 20, nullable = false)
+	@Column(length = 20, nullable = false)
 	private UserRole userRole;
 
 	@Builder
