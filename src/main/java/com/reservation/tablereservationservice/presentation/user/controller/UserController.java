@@ -1,6 +1,6 @@
 package com.reservation.tablereservationservice.presentation.user.controller;
 
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,7 +42,8 @@ public class UserController {
 	}
 
 	@GetMapping("/me")
-	public ApiResponse<LoginUserResponseDto> getLoginUser(@AuthenticationPrincipal String email) {
+	public ApiResponse<LoginUserResponseDto> getLoginUser(Authentication authentication) {
+		String email = (String)authentication.getPrincipal();
 		LoginUserResponseDto responseDto = userService.getCurrentUser(email);
 
 		return ApiResponse.success("사용자 정보 조회 성공", responseDto);

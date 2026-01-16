@@ -11,4 +11,6 @@ public interface UserRepository {
 	boolean existsByPhone(String phone);
 
 	Optional<User> findByEmail(String email);
+
+	void deleteAll();
 }

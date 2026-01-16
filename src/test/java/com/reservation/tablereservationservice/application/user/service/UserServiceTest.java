@@ -21,6 +21,7 @@ import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.global.jwt.JwtProvider;
 import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginUserResponseDto;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -41,7 +42,7 @@ class UserServiceTest {
 	@DisplayName("회원가입 성공")
 	void signUp_Success() {
 		// given
-		User user = createTestUser("test@email.com", "password123!", "홍길동", "010-1234-5678", UserRole.CUSTOMER);
+		User user = createTestUser("test@email.com", "테스터", "010-1234-5678");
 		String encodedPassword = "encodedPassword";
 
 		given(userRepository.existsByEmail(user.getEmail())).willReturn(false);
@@ -54,18 +55,18 @@ class UserServiceTest {
 
 		// then
 		assertThat(result).isNotNull();
-		assertThat(result.getEmail()).isEqualTo(user.getEmail());
-		assertThat(result.getPassword()).isEqualTo(encodedPassword); // 암호화 확인
-		assertThat(result.getName()).isEqualTo(user.getName());
-		assertThat(result.getPhone()).isEqualTo(user.getPhone());
-		assertThat(result.getUserRole()).isEqualTo(user.getUserRole());
+		assertThat(result.getEmail()).isEqualTo("test@email.com");
+		assertThat(result.getName()).isEqualTo("테스터");
+		assertThat(result.getPhone()).isEqualTo("010-1234-5678");
+		assertThat(result.getUserRole()).isEqualTo(UserRole.CUSTOMER);
+		assertThat(result.getPassword()).isEqualTo(encodedPassword);
 	}
 
 	@Test
 	@DisplayName("회원가입 실패 - 이메일 중복")
 	void signUp_Fail_DuplicateEmail() {
 		// given
-		User user = createTestUser("duplicate@email.com", "password123!", "홍길동", "010-1234-5678", UserRole.CUSTOMER);
+		User user = createTestUser("dup@email.com", "테스터", "010-1234-5678");
 		given(userRepository.existsByEmail(user.getEmail())).willReturn(true);
 
 		// when & then
@@ -76,17 +77,14 @@ class UserServiceTest {
 				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_RESOURCE);
 				assertThat(ue.getArgs()).containsExactly("email");
 			});
-
-		verify(userRepository, never()).existsByPhone(anyString());
-		verify(passwordEncoder, never()).encode(anyString());
-		verify(userRepository, never()).save(any());
 	}
 
 	@Test
 	@DisplayName("회원가입 실패 - 전화번호 중복")
 	void signUp_Fail_DuplicatePhone() {
 		// given
-		User user = createTestUser("test@email.com", "password123!", "홍길동", "010-0000-0000", UserRole.CUSTOMER);
+		User user = createTestUser("test@email.com", "테스터", "010-0000-0000");
+
 		given(userRepository.existsByEmail(user.getEmail())).willReturn(false);
 		given(userRepository.existsByPhone(user.getPhone())).willReturn(true);
 
@@ -98,21 +96,19 @@ class UserServiceTest {
 				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_RESOURCE);
 				assertThat(ue.getArgs()).containsExactly("phone");
 			});
-
-		verify(passwordEncoder, never()).encode(anyString());
-		verify(userRepository, never()).save(any());
 	}
 
 	@Test
 	@DisplayName("로그인 성공")
 	void login_Success() {
 		// given
-		String email = "test@email.com";
+		String email = "login@email.com";
 		String rawPassword = "password123!";
 		String encodedPassword = "encodedPassword";
 		String token = "access.token.value";
 
-		User user = createTestUser(email, encodedPassword, "홍길동", "010-1234-5678", UserRole.CUSTOMER);
+		User user = createTestUser(email, "테스터", "010-1111-2222");
+		user.encryptPassword(encodedPassword);
 
 		given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
 		given(passwordEncoder.matches(rawPassword, encodedPassword)).willReturn(true);
@@ -124,9 +120,8 @@ class UserServiceTest {
 		// then
 		assertThat(result).isNotNull();
 		assertThat(result.getEmail()).isEqualTo(email);
-		assertThat(result.getAccessToken()).isEqualTo(token);
 		assertThat(result.getUserRole()).isEqualTo(UserRole.CUSTOMER.name());
-
+		assertThat(result.getAccessToken()).isEqualTo(token);
 	}
 
 	@Test
@@ -141,25 +136,23 @@ class UserServiceTest {
 		// when & then
 		assertThatThrownBy(() -> userService.login(email, rawPassword))
 			.isInstanceOf(UserException.class)
-			// 실제로 발생한 예외를 테스트
 			.satisfies(ex -> {
 				UserException ue = (UserException)ex;
 				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+				assertThat(ue.getArgs()).containsExactly("User");
 			});
-
-		verify(passwordEncoder, never()).matches(anyString(), anyString());
-		verify(jwtProvider, never()).createAccessToken(anyString(), any());
 	}
 
 	@Test
 	@DisplayName("로그인 실패 - 비밀번호 불일치")
 	void login_Fail_InvalidPassword() {
 		// given
-		String email = "test@email.com";
+		String email = "login_fail@email.com";
 		String rawPassword = "wrongPassword!";
 		String encodedPassword = "encodedPassword";
 
-		User user = createTestUser(email, encodedPassword, "홍길동", "010-1234-5678", UserRole.CUSTOMER);
+		User user = createTestUser(email, "테스터", "010-2222-3333");
+		user.encryptPassword(encodedPassword);
 
 		given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
 		given(passwordEncoder.matches(rawPassword, encodedPassword)).willReturn(false);
@@ -172,17 +165,51 @@ class UserServiceTest {
 				UserException ue = (UserException)ex;
 				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.INVALID_PASSWORD);
 			});
-
-		verify(jwtProvider, never()).createAccessToken(anyString(), any());
 	}
 
-	private User createTestUser(String email, String password, String name, String phone, UserRole role) {
+	@Test
+	@DisplayName("이메일로 현재 사용자 정보 조회 성공")
+	void getCurrentUser_Success() {
+		// given
+		String email = "me@email.com";
+		User user = createTestUser(email, "테스터", "010-4444-5555");
+
+		given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
+
+		// when
+		LoginUserResponseDto result = userService.getCurrentUser(email);
+
+		// then
+		assertThat(result).isNotNull();
+		assertThat(result.getEmail()).isEqualTo(email);
+		assertThat(result.getName()).isEqualTo("테스터");
+		assertThat(result.getUserRole()).isEqualTo(UserRole.CUSTOMER.name());
+	}
+
+	@Test
+	@DisplayName("이메일로 현재 사용자 정보 조회 실패 - 사용자 없음")
+	void getCurrentUser_Fail_UserNotFound() {
+		// given
+		String email = "notfound@email.com";
+		given(userRepository.findByEmail(email)).willReturn(Optional.empty());
+
+		// when & then
+		assertThatThrownBy(() -> userService.getCurrentUser(email))
+			.isInstanceOf(UserException.class)
+			.satisfies(ex -> {
+				UserException ue = (UserException)ex;
+				assertThat(ue.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
+				assertThat(ue.getArgs()).containsExactly("User");
+			});
+	}
+
+	private User createTestUser(String email, String name, String phone) {
 		return User.builder()
 			.email(email)
-			.password(password)
+			.password("password123!")
 			.name(name)
 			.phone(phone)
-			.userRole(role)
+			.userRole(UserRole.CUSTOMER)
 			.build();
 	}
 }

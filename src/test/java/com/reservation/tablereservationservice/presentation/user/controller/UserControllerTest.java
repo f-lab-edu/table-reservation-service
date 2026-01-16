@@ -12,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,6 +21,7 @@ import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
 import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginUserResponseDto;
 
 @WebMvcTest(UserController.class)
 @Import(GlobalExceptionHandler.class)
@@ -40,7 +42,7 @@ class UserControllerTest {
 			{
 			  "email": "not-email",
 			  "password": "123",
-			  "name": "홍길동홍길동홍길동홍길동",
+			  "name": "테스터테스터테스터테스터",
 			  "phone": "010-000-0000",
 			  "userRole": "ADMIN"
 			}
@@ -67,11 +69,12 @@ class UserControllerTest {
 	@Test
 	@DisplayName("회원가입 시 이메일 중복 발생 시 409 응답 반환")
 	void signUp_DuplicateEmail_ReturnsConflict() throws Exception {
+		// given
 		String validJson = """
 			{
 			  "email": "dup@email.com",
 			  "password": "Abcd1234!",
-			  "name": "홍길동",
+			  "name": "테스터",
 			  "phone": "010-1234-5678",
 			  "userRole": "CUSTOMER"
 			}
@@ -80,6 +83,7 @@ class UserControllerTest {
 		given(userService.signUp(any()))
 			.willThrow(new UserException(ErrorCode.DUPLICATE_RESOURCE, "email"));
 
+		// when & then
 		mockMvc.perform(post("/api/users/signup")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validJson))
@@ -91,11 +95,12 @@ class UserControllerTest {
 	@Test
 	@DisplayName("회원가입 시 휴대폰 번호 중복 발생 시 409 응답 반환")
 	void signUp_DuplicatePhone_ReturnsConflict() throws Exception {
+		// given
 		String validJson = """
 			{
 			  "email": "test@email.com",
 			  "password": "Abcd1234!",
-			  "name": "홍길동",
+			  "name": "테스터",
 			  "phone": "010-1234-5678",
 			  "userRole": "CUSTOMER"
 			}
@@ -104,6 +109,7 @@ class UserControllerTest {
 		given(userService.signUp(any()))
 			.willThrow(new UserException(ErrorCode.DUPLICATE_RESOURCE, "phone"));
 
+		// when & then
 		mockMvc.perform(post("/api/users/signup")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validJson))
@@ -124,6 +130,8 @@ class UserControllerTest {
 			""";
 
 		LoginResponseDto result = LoginResponseDto.builder()
+			.email("test@email.com")
+			.userRole("CUSTOMER")
 			.accessToken("access.token.value")
 			.build();
 
@@ -187,4 +195,47 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.message").value(ErrorCode.INVALID_PASSWORD.getMessage()));
 	}
 
+	@Test
+	@DisplayName("내 정보 조회 성공 - Authentication principal(email)로 /me 호출")
+	void me_Success() throws Exception {
+		String email = "test@email.com";
+
+		LoginUserResponseDto response = LoginUserResponseDto.builder()
+			.userId(1L)
+			.email(email)
+			.name("테스터")
+			.userRole("CUSTOMER")
+			.build();
+
+		given(userService.getCurrentUser(email)).willReturn(response);
+
+		mockMvc.perform(get("/api/users/me")
+				.principal(new UsernamePasswordAuthenticationToken(email, null)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value(200))
+			.andExpect(jsonPath("$.message").value("사용자 정보 조회 성공"))
+			.andExpect(jsonPath("$.data.userId").value(1))
+			.andExpect(jsonPath("$.data.email").value(email))
+			.andExpect(jsonPath("$.data.name").value("테스터"))
+			.andExpect(jsonPath("$.data.userRole").value("CUSTOMER"));
+
+		then(userService).should().getCurrentUser(email);
+	}
+
+	@Test
+	@DisplayName("내 정보 조회 실패 - 존재하지 않는 이메일이면 404")
+	void me_Fail_UserNotFound() throws Exception {
+		String email = "missing@email.com";
+
+		given(userService.getCurrentUser(email))
+			.willThrow(new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
+
+		mockMvc.perform(get("/api/users/me")
+				.principal(new UsernamePasswordAuthenticationToken(email, null)))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value(404))
+			.andExpect(jsonPath("$.message").value("User를(을) 찾을 수 없습니다."));
+
+		then(userService).should().getCurrentUser(email);
+	}
 }

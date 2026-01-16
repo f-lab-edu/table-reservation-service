@@ -24,7 +24,6 @@ public class JpaUserRepository implements UserRepository {
 		UserEntity savedUserEntity = userEntityRepository.save(userEntity);
 
 		return UserMapper.INSTANCE.toDomain(savedUserEntity);
-
 	}
 
 	@Override
@@ -41,6 +40,11 @@ public class JpaUserRepository implements UserRepository {
 	public Optional<User> findByEmail(String email) {
 		return userEntityRepository.findByEmail(email)
 			.map(UserMapper.INSTANCE::toDomain);
+	}
+
+	@Override
+	public void deleteAll() {
+		userEntityRepository.deleteAll();
 	}
 
 }
