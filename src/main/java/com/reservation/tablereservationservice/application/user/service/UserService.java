@@ -1,4 +1,76 @@
 package com.reservation.tablereservationservice.application.user.service;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.reservation.tablereservationservice.domain.user.User;
+import com.reservation.tablereservationservice.domain.user.UserRepository;
+import com.reservation.tablereservationservice.global.exception.ErrorCode;
+import com.reservation.tablereservationservice.global.exception.UserException;
+import com.reservation.tablereservationservice.global.jwt.JwtProvider;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginResponseDto;
+import com.reservation.tablereservationservice.presentation.user.dto.LoginUserResponseDto;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
 public class UserService {
+
+	private final UserRepository userRepository;
+	private final PasswordEncoder passwordEncoder;
+	private final JwtProvider jwtProvider;
+
+	@Transactional
+	public User signUp(User user) {
+		validateDuplicateEmail(user.getEmail());
+		validateDuplicatePhone(user.getPhone());
+
+		String encodedPassword = passwordEncoder.encode(user.getPassword());
+		user.encryptPassword(encodedPassword);
+
+		return userRepository.save(user);
+	}
+
+	public LoginResponseDto login(String email, String password) {
+		User user = userRepository.findByEmail(email)
+			.orElseThrow(() -> new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
+
+		if (!passwordEncoder.matches(password, user.getPassword())) {
+			throw new UserException(ErrorCode.INVALID_PASSWORD);
+		}
+
+		String accessToken = jwtProvider.createAccessToken(user.getEmail(), user.getUserRole());
+
+		return LoginResponseDto.builder()
+			.email(user.getEmail())
+			.accessToken(accessToken)
+			.userRole(user.getUserRole().name())
+			.build();
+	}
+
+	public LoginUserResponseDto getCurrentUser(String email) {
+		User user = userRepository.findByEmail(email)
+			.orElseThrow(() -> new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
+
+		return LoginUserResponseDto.builder()
+			.userId(user.getUserId())
+			.email(user.getEmail())
+			.name(user.getName())
+			.userRole(user.getUserRole().name())
+			.build();
+	}
+
+	private void validateDuplicateEmail(String email) {
+		if (userRepository.existsByEmail(email)) {
+			throw new UserException(ErrorCode.DUPLICATE_RESOURCE, "email");
+		}
+	}
+
+	private void validateDuplicatePhone(String phone) {
+		if (userRepository.existsByPhone(phone)) {
+			throw new UserException(ErrorCode.DUPLICATE_RESOURCE, "phone");
+		}
+	}
 }

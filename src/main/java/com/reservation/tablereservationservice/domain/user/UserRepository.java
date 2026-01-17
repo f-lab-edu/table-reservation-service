@@ -1,7 +1,16 @@
 package com.reservation.tablereservationservice.domain.user;
 
+import java.util.Optional;
+
 public interface UserRepository {
 
-	// 여기에 추후 infra crud에서 활용될 인터페이스 명세가 들어감
 	User save(User user);
+
+	boolean existsByEmail(String email);
+
+	boolean existsByPhone(String phone);
+
+	Optional<User> findByEmail(String email);
+
+	void deleteAll();
 }
