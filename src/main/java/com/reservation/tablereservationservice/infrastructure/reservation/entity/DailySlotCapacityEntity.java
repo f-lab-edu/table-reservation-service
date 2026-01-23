@@ -51,11 +51,16 @@ public class DailySlotCapacityEntity extends BaseTimeEntity {
 	private Long version;
 
 	@Builder
-	public DailySlotCapacityEntity(RestaurantSlotEntity slot, LocalDate date, Integer remainingCount, Integer maxCount) {
+	public DailySlotCapacityEntity(RestaurantSlotEntity slot, LocalDate date, Integer remainingCount,
+		Integer maxCount) {
 		this.slot = slot;
 		this.date = date;
 		this.remainingCount = remainingCount;
 		this.maxCount = maxCount;
+	}
+
+	public void assignSlot(RestaurantSlotEntity restaurantSlot) {
+		this.slot = restaurantSlot;
 	}
 
 	public void updateRemainingCount(Integer remainingCount) {

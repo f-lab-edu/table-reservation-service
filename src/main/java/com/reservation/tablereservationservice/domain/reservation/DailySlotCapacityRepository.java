@@ -8,4 +8,6 @@ public interface DailySlotCapacityRepository {
 	Optional<DailySlotCapacity> findBySlotIdAndDate(Long restaurantSlotId, LocalDate date);
 
 	DailySlotCapacity save(DailySlotCapacity dailySlotCapacity);
+
+	void update(DailySlotCapacity dailySlotCapacity);
 }

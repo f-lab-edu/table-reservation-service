@@ -13,11 +13,11 @@ public class DailySlotCapacity {
 	private LocalDate date;
 	private Integer remainingCount;
 	private Integer maxCount;
-	private long version;
+	private Long version;
 
 	@Builder
 	public DailySlotCapacity(Long capacityId, Long slotId, LocalDate date, Integer remainingCount, Integer maxCount,
-		long version) {
+		Long version) {
 		this.capacityId = capacityId;
 		this.slotId = slotId;
 		this.date = date;
