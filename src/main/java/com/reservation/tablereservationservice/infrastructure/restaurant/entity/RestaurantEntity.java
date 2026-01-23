@@ -1,9 +1,13 @@
 package com.reservation.tablereservationservice.infrastructure.restaurant.entity;
 
+import com.reservation.tablereservationservice.domain.restaurant.CategoryCode;
+import com.reservation.tablereservationservice.domain.restaurant.RegionCode;
 import com.reservation.tablereservationservice.infrastructure.common.entity.BaseTimeEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -25,11 +29,13 @@ public class RestaurantEntity extends BaseTimeEntity {
 	@Column(name = "restaurant_owner_id", nullable = false)
 	private Long ownerId;
 
-	@Column(name = "restaurant_region_code_id", nullable = false, length = 10)
-	private String regionCodeId;
+	@Enumerated(EnumType.STRING)
+	@Column(name = "restaurant_region_code", nullable = false, length = 10)
+	private RegionCode regionCode;
 
-	@Column(name = "restaurant_category_code_id", nullable = false, length = 10)
-	private String categoryCodeId;
+	@Enumerated(EnumType.STRING)
+	@Column(name = "restaurant_category_code", nullable = false, length = 10)
+	private CategoryCode categoryCode;
 
 	@Column(name = "restaurant_name", nullable = false, length = 100)
 	private String name;
@@ -47,11 +53,11 @@ public class RestaurantEntity extends BaseTimeEntity {
 	private Integer mainMenuPrice;
 
 	@Builder
-	public RestaurantEntity(Long ownerId, String regionCodeId, String categoryCodeId, String name, String address,
+	public RestaurantEntity(Long ownerId, RegionCode regionCode, CategoryCode categoryCode, String name, String address,
 		String description, String mainMenuName, Integer mainMenuPrice) {
 		this.ownerId = ownerId;
-		this.regionCodeId = regionCodeId;
-		this.categoryCodeId = categoryCodeId;
+		this.regionCode = regionCode;
+		this.categoryCode = categoryCode;
 		this.name = name;
 		this.address = address;
 		this.description = description;

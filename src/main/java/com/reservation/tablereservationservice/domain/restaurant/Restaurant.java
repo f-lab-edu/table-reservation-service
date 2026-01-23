@@ -8,8 +8,8 @@ public class Restaurant {
 
 	private Long restaurantId;
 	private Long ownerId;
-	private String regionCodeId;
-	private String categoryCodeId;
+	private RegionCode regionCode;
+	private CategoryCode categoryCode;
 	private String name;
 	private String address;
 	private String description;
@@ -17,12 +17,12 @@ public class Restaurant {
 	private Integer mainMenuPrice;
 
 	@Builder
-	public Restaurant(Long restaurantId, Long ownerId, String regionCodeId, String categoryCodeId, String name,
+	public Restaurant(Long restaurantId, Long ownerId, RegionCode regionCode, CategoryCode categoryCode, String name,
 		String address, String description, String mainMenuName, Integer mainMenuPrice) {
 		this.restaurantId = restaurantId;
 		this.ownerId = ownerId;
-		this.regionCodeId = regionCodeId;
-		this.categoryCodeId = categoryCodeId;
+		this.regionCode = regionCode;
+		this.categoryCode = categoryCode;
 		this.name = name;
 		this.address = address;
 		this.description = description;
