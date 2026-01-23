@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.infrastructure.common.entity.BaseTimeEntity;
-import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantEntity;
 import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantSlotEntity;
 
 import jakarta.persistence.Column;
@@ -47,10 +46,6 @@ public class ReservationEntity extends BaseTimeEntity {
 	private Long userId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "reservation_restaurant_id", nullable = false)
-	private RestaurantEntity restaurant;
-
-	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "reservation_slot_id", nullable = false)
 	private RestaurantSlotEntity slot;
 
@@ -71,20 +66,15 @@ public class ReservationEntity extends BaseTimeEntity {
 	private ReservationStatus status;
 
 	@Builder
-	public ReservationEntity(Long userId, RestaurantEntity restaurant, RestaurantSlotEntity slot, LocalDate date,
+	public ReservationEntity(Long userId, RestaurantSlotEntity slot, LocalDate date,
 		LocalDateTime visitAt, Integer partySize, String note, ReservationStatus status) {
 		this.userId = userId;
-		this.restaurant = restaurant;
 		this.slot = slot;
 		this.date = date;
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.note = note;
 		this.status = status;
-	}
-
-	public void assignRestaurant(RestaurantEntity restaurant) {
-		this.restaurant = restaurant;
 	}
 
 	public void assignSlot(RestaurantSlotEntity slot) {

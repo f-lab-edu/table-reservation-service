@@ -11,7 +11,6 @@ public class Reservation {
 
 	private Long reservationId;
 	private Long userId;
-	private Long restaurantId;
 	private Long slotId;
 	private LocalDate date;
 	private LocalDateTime visitAt;
@@ -20,25 +19,16 @@ public class Reservation {
 	private ReservationStatus status;
 
 	@Builder
-	public Reservation(Long reservationId, Long userId, Long restaurantId, Long slotId, LocalDate date,
+	public Reservation(Long reservationId, Long userId, Long slotId, LocalDate date,
 		LocalDateTime visitAt, Integer partySize, String note, ReservationStatus status) {
 		this.reservationId = reservationId;
 		this.userId = userId;
-		this.restaurantId = restaurantId;
 		this.slotId = slotId;
 		this.date = date;
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.note = note;
-		this.status = (status == null) ? ReservationStatus.PENDING : status;
-	}
-
-	public void confirm() {
-		this.status = ReservationStatus.CONFIRMED;
-	}
-
-	public void cancel() {
-		this.status = ReservationStatus.CANCELED;
+		this.status = status;
 	}
 
 }

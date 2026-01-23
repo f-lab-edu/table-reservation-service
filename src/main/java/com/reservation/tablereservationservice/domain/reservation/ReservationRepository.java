@@ -6,5 +6,5 @@ public interface ReservationRepository {
 
 	Reservation save(Reservation reservation);
 
-	boolean existsByUserIdAndVisitAt(Long userId, LocalDateTime visitAt);
+	boolean existsByUserIdAndVisitAtAndStatus(Long userId, LocalDateTime visitAt, ReservationStatus reservationStatus);
 }
