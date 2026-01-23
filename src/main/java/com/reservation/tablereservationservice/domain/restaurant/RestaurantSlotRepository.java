@@ -6,4 +6,6 @@ public interface RestaurantSlotRepository {
 
 	Optional<RestaurantSlot> findById(Long slotId);
 
+	RestaurantSlot save(RestaurantSlot restaurantSlot);
+
 }
