@@ -1,6 +1,5 @@
 package com.reservation.tablereservationservice.application.reservation.service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -42,7 +41,9 @@ public class ReservationService {
 		RestaurantSlot slot = restaurantSlotRepository.findById(requestDto.getSlotId())
 			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "RestaurantSlot"));
 
-		LocalDateTime visitAt = calculateVisitAt(requestDto.getDate(), slot);
+		validatePartySize(requestDto.getPartySize(), slot);
+
+		LocalDateTime visitAt = LocalDateTime.of(requestDto.getDate(), slot.getTime());
 
 		// 중복 시간대 예약 검증
 		validateDuplicatedTime(user.getUserId(), visitAt);
@@ -58,7 +59,6 @@ public class ReservationService {
 		Reservation reservation = Reservation.builder()
 			.userId(user.getUserId())
 			.slotId(slot.getSlotId())
-			.date(requestDto.getDate())
 			.visitAt(visitAt)
 			.partySize(requestDto.getPartySize())
 			.note(requestDto.getNote())
@@ -73,13 +73,15 @@ public class ReservationService {
 
 	}
 
-	private LocalDateTime calculateVisitAt(LocalDate date, RestaurantSlot slot) {
-		return LocalDateTime.of(date, slot.getTime());
-	}
-
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {
 		if (reservationRepository.existsByUserIdAndVisitAtAndStatus(userId, visitAt, ReservationStatus.CONFIRMED)) {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
+		}
+	}
+
+	private void validatePartySize(int partySize, RestaurantSlot slot) {
+		if (partySize <= 0 || partySize > slot.getMaxCapacity()) {
+			throw new ReservationException(ErrorCode.INVALID_PARTY_SIZE);
 		}
 	}
 
@@ -92,7 +94,6 @@ public class ReservationService {
 	private void decreaseCapacity(DailySlotCapacity capacity, int partySize) {
 		capacity.decrease(partySize);
 		dailySlotCapacityRepository.update(capacity);
-
 	}
 
 }
