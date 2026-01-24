@@ -1,6 +1,5 @@
 package com.reservation.tablereservationservice.infrastructure.reservation.entity;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
@@ -49,9 +48,6 @@ public class ReservationEntity extends BaseTimeEntity {
 	@JoinColumn(name = "reservation_slot_id", nullable = false)
 	private RestaurantSlotEntity slot;
 
-	@Column(name = "reservation_date", nullable = false)
-	private LocalDate date;
-
 	@Column(name = "reservation_visit_at", nullable = false)
 	private LocalDateTime visitAt;
 
@@ -66,11 +62,10 @@ public class ReservationEntity extends BaseTimeEntity {
 	private ReservationStatus status;
 
 	@Builder
-	public ReservationEntity(Long userId, RestaurantSlotEntity slot, LocalDate date,
-		LocalDateTime visitAt, Integer partySize, String note, ReservationStatus status) {
+	public ReservationEntity(Long userId, RestaurantSlotEntity slot, LocalDateTime visitAt, Integer partySize,
+		String note, ReservationStatus status) {
 		this.userId = userId;
 		this.slot = slot;
-		this.date = date;
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.note = note;
