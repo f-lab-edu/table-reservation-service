@@ -30,4 +30,9 @@ public class JpaRestaurantRepository implements RestaurantRepository {
 
 		return RestaurantMapper.INSTANCE.toDomain(saved);
 	}
+
+	@Override
+	public void deleteAll() {
+		restaurantEntityRepository.deleteAll();
+	}
 }

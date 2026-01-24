@@ -36,4 +36,9 @@ public class JpaReservationRepository implements ReservationRepository {
 		ReservationStatus reservationStatus) {
 		return reservationEntityRepository.existsByUserIdAndVisitAtAndStatus(userId, visitAt, reservationStatus);
 	}
+
+	@Override
+	public void deleteAll() {
+		reservationEntityRepository.deleteAll();
+	}
 }

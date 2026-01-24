@@ -10,4 +10,6 @@ public interface DailySlotCapacityRepository {
 	DailySlotCapacity save(DailySlotCapacity dailySlotCapacity);
 
 	void update(DailySlotCapacity dailySlotCapacity);
+
+	void deleteAll();
 }

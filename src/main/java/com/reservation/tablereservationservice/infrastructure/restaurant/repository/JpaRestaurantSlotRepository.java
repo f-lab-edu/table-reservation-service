@@ -36,4 +36,9 @@ public class JpaRestaurantSlotRepository implements RestaurantSlotRepository {
 		return RestaurantMapper.INSTANCE.toDomain(saved);
 
 	}
+
+	@Override
+	public void deleteAll() {
+		restaurantSlotEntityRepository.deleteAll();
+	}
 }

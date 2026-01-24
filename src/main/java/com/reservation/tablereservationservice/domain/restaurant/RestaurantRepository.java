@@ -7,4 +7,6 @@ public interface RestaurantRepository {
 	Optional<Restaurant> findById(Long restaurantId);
 
 	Restaurant save(Restaurant restaurant);
+
+	void deleteAll();
 }

@@ -87,7 +87,6 @@ class ReservationServiceTest {
 				.reservationId(999L)
 				.userId(r.getUserId())
 				.slotId(r.getSlotId())
-				.date(r.getDate())
 				.visitAt(r.getVisitAt())
 				.partySize(r.getPartySize())
 				.note(r.getNote())

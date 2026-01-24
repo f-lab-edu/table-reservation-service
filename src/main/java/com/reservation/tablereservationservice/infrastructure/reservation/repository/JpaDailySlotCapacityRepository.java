@@ -50,4 +50,9 @@ public class JpaDailySlotCapacityRepository implements DailySlotCapacityReposito
 		dailySlotCapacityEntityRepository.save(entity);
 	}
 
+	@Override
+	public void deleteAll() {
+		dailySlotCapacityEntityRepository.deleteAll();
+	}
+
 }

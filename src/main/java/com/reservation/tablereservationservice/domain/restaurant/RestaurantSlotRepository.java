@@ -8,4 +8,6 @@ public interface RestaurantSlotRepository {
 
 	RestaurantSlot save(RestaurantSlot restaurantSlot);
 
+	void deleteAll();
+
 }
