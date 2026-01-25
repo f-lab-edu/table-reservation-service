@@ -20,4 +20,8 @@ public class RestaurantSlot {
 		this.time = time;
 		this.maxCapacity = maxCapacity;
 	}
+
+	public boolean canAcceptPartySize(int partySize) {
+		return partySize > 0 && partySize <= maxCapacity;
+	}
 }

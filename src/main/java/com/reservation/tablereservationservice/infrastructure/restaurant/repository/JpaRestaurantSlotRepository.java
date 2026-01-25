@@ -6,6 +6,8 @@ import org.springframework.stereotype.Repository;
 
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
+import com.reservation.tablereservationservice.global.exception.ErrorCode;
+import com.reservation.tablereservationservice.global.exception.RestaurantException;
 import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantEntity;
 import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantSlotEntity;
 import com.reservation.tablereservationservice.infrastructure.restaurant.mapper.RestaurantMapper;
@@ -35,6 +37,12 @@ public class JpaRestaurantSlotRepository implements RestaurantSlotRepository {
 		RestaurantSlotEntity saved = restaurantSlotEntityRepository.save(entity);
 		return RestaurantMapper.INSTANCE.toDomain(saved);
 
+	}
+
+	@Override
+	public RestaurantSlot fetchById(Long slotId) {
+		return findById(slotId)
+			.orElseThrow(() -> new RestaurantException(ErrorCode.RESOURCE_NOT_FOUND, "Restaurant"));
 	}
 
 	@Override

@@ -116,7 +116,6 @@ class ReservationControllerIntegrationTest {
 			.slotId(slotId)
 			.date(date)
 			.remainingCount(10)
-			.maxCount(10)
 			.version(0L)
 			.build());
 	}

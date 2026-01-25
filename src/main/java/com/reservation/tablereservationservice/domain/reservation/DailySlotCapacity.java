@@ -12,33 +12,27 @@ public class DailySlotCapacity {
 	private Long slotId;
 	private LocalDate date;
 	private Integer remainingCount;
-	private Integer maxCount;
 	private Long version;
 
 	@Builder
-	public DailySlotCapacity(Long capacityId, Long slotId, LocalDate date, Integer remainingCount, Integer maxCount,
-		Long version) {
+	public DailySlotCapacity(Long capacityId, Long slotId, LocalDate date, Integer remainingCount, Long version) {
 		this.capacityId = capacityId;
 		this.slotId = slotId;
 		this.date = date;
 		this.remainingCount = remainingCount;
-		this.maxCount = maxCount;
 		this.version = version;
 	}
 
-	public void decrease(int count) {
-		this.remainingCount -= count;
+	public boolean hasEnough(int partySize) {
+		return partySize > 0 && remainingCount >= partySize;
 	}
 
-	public boolean hasEnough(int partySize) {
-		if (partySize <= 0) {
+	public boolean decrease(int partySize) {
+		if (!hasEnough(partySize)) {
 			return false;
 		}
-
-		if (partySize > maxCount) {
-			return false;
-		}
-		return remainingCount >= partySize;
+		this.remainingCount -= partySize;
+		return true;
 	}
 
 }

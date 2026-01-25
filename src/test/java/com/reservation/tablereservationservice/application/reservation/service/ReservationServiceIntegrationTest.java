@@ -110,7 +110,7 @@ class ReservationServiceIntegrationTest {
 	void create_success_confirmed_and_decreaseCapacity() {
 		// given
 		int partySize = 2;
-		saveCapacity(slotId, date, 10, 10);
+		saveCapacity(slotId, date, 10);
 
 		ReservationRequestDto req = new ReservationRequestDto(slotId, date, partySize, "note");
 		LocalDateTime visitAt = LocalDateTime.of(date, slotTime);
@@ -144,7 +144,7 @@ class ReservationServiceIntegrationTest {
 	void create_fail_duplicatedTime_preCheck() {
 		// given
 		// 첫 번째 예약
-		saveCapacity(slotId, date, 10, 10);
+		saveCapacity(slotId, date, 10);
 		reservationService.create(email, new ReservationRequestDto(slotId, date, 2, ""));
 
 		// when & then
@@ -169,7 +169,6 @@ class ReservationServiceIntegrationTest {
 			.slotId(slotId)
 			.date(date)
 			.remainingCount(1) // remainingCount를 1로 만들어서 준비
-			.maxCount(10)
 			.version(0L)
 			.build();
 		dailySlotCapacityRepository.save(capacity);
@@ -207,12 +206,11 @@ class ReservationServiceIntegrationTest {
 			});
 	}
 
-	private void saveCapacity(Long slotId, LocalDate date, int remainingCount, int maxCount) {
+	private void saveCapacity(Long slotId, LocalDate date, int remainingCount) {
 		DailySlotCapacity capacity = DailySlotCapacity.builder()
 			.slotId(slotId)
 			.date(date)
 			.remainingCount(remainingCount)
-			.maxCount(maxCount)
 			.version(0L)
 			.build();
 

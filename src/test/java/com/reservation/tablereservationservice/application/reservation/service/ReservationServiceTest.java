@@ -70,14 +70,13 @@ class ReservationServiceTest {
 			.slotId(slotId)
 			.date(date)
 			.remainingCount(10)
-			.maxCount(10)
 			.version(0L)
 			.build();
 
 		ReservationRequestDto req = new ReservationRequestDto(slotId, date, partySize, "note");
 
-		given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
-		given(restaurantSlotRepository.findById(slotId)).willReturn(Optional.of(slot));
+		given(userRepository.fetchByEmail(email)).willReturn(user);
+		given(restaurantSlotRepository.fetchById(slotId)).willReturn(slot);
 		given(reservationRepository.existsByUserIdAndVisitAtAndStatus(userId, LocalDateTime.of(date, slotTime),
 			ReservationStatus.CONFIRMED)).willReturn(false);
 		given(dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)).willReturn(Optional.of(capacity));
@@ -195,7 +194,6 @@ class ReservationServiceTest {
 			.slotId(slotId)
 			.date(date)
 			.remainingCount(1)
-			.maxCount(10)
 			.version(0L)
 			.build();
 

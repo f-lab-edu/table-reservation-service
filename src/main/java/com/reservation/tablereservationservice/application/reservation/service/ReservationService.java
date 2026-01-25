@@ -17,7 +17,6 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 import lombok.RequiredArgsConstructor;
@@ -35,11 +34,9 @@ public class ReservationService {
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
-		User user = userRepository.findByEmail(email)
-			.orElseThrow(() -> new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
+		User user = userRepository.fetchByEmail(email);
 
-		RestaurantSlot slot = restaurantSlotRepository.findById(requestDto.getSlotId())
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "RestaurantSlot"));
+		RestaurantSlot slot = restaurantSlotRepository.fetchById(requestDto.getSlotId());
 
 		validatePartySize(requestDto.getPartySize(), slot);
 
@@ -53,7 +50,6 @@ public class ReservationService {
 			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
 
 		// 수량 검증 및 차감
-		validateEnoughCapacity(capacity, requestDto.getPartySize());
 		decreaseCapacity(capacity, requestDto.getPartySize());
 
 		Reservation reservation = Reservation.builder()
@@ -80,19 +76,15 @@ public class ReservationService {
 	}
 
 	private void validatePartySize(int partySize, RestaurantSlot slot) {
-		if (partySize <= 0 || partySize > slot.getMaxCapacity()) {
+		if (!slot.canAcceptPartySize(partySize)) {
 			throw new ReservationException(ErrorCode.INVALID_PARTY_SIZE);
 		}
 	}
 
-	private void validateEnoughCapacity(DailySlotCapacity capacity, int partySize) {
-		if (!capacity.hasEnough(partySize)) {
+	private void decreaseCapacity(DailySlotCapacity capacity, int partySize) {
+		if (!capacity.decrease(partySize)) {
 			throw new ReservationException(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH);
 		}
-	}
-
-	private void decreaseCapacity(DailySlotCapacity capacity, int partySize) {
-		capacity.decrease(partySize);
 		dailySlotCapacityRepository.update(capacity);
 	}
 

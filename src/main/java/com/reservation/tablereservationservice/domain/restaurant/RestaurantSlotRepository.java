@@ -8,6 +8,8 @@ public interface RestaurantSlotRepository {
 
 	RestaurantSlot save(RestaurantSlot restaurantSlot);
 
+	RestaurantSlot fetchById(Long slotId);
+
 	void deleteAll();
 
 }

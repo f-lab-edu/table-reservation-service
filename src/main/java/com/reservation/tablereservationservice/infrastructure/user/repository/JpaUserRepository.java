@@ -6,6 +6,8 @@ import org.springframework.stereotype.Repository;
 
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
+import com.reservation.tablereservationservice.global.exception.ErrorCode;
+import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.infrastructure.user.entity.UserEntity;
 import com.reservation.tablereservationservice.infrastructure.user.mapper.UserMapper;
 
@@ -40,6 +42,12 @@ public class JpaUserRepository implements UserRepository {
 	public Optional<User> findByEmail(String email) {
 		return userEntityRepository.findByEmail(email)
 			.map(UserMapper.INSTANCE::toDomain);
+	}
+
+	@Override
+	public User fetchByEmail(String email) {
+		return findByEmail(email)
+			.orElseThrow(() -> new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
 	}
 
 	@Override

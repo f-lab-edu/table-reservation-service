@@ -9,6 +9,6 @@ import com.reservation.tablereservationservice.infrastructure.reservation.entity
 
 public interface DailySlotCapacityEntityRepository extends JpaRepository<DailySlotCapacityEntity, Long> {
 
-	Optional<DailySlotCapacityEntity> findBySlot_SlotIdAndDate(Long slotId, LocalDate date);
+	Optional<DailySlotCapacityEntity> findBySlotIdAndDate(Long slotSlotId, LocalDate date);
 
 }

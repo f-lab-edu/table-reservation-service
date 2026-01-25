@@ -26,7 +26,7 @@ public class JpaDailySlotCapacityRepository implements DailySlotCapacityReposito
 	@Override
 	public Optional<DailySlotCapacity> findBySlotIdAndDate(Long slotId, LocalDate date) {
 		return dailySlotCapacityEntityRepository
-			.findBySlot_SlotIdAndDate(slotId, date)
+			.findBySlotIdAndDate(slotId, date)
 			.map(ReservationMapper.INSTANCE::toDomain);
 	}
 
