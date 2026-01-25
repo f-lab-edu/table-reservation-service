@@ -4,18 +4,14 @@ import java.time.LocalDateTime;
 
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.infrastructure.common.entity.BaseTimeEntity;
-import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantSlotEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Builder;
@@ -29,7 +25,7 @@ import lombok.NoArgsConstructor;
 	uniqueConstraints = {
 		@UniqueConstraint(
 			name = "uq_user_visit_at",
-			columnNames = {"reservation_user_id", "reservation_visit_at"}
+			columnNames = {"user_id", "visit_at"}
 		)
 	}
 )
@@ -41,38 +37,32 @@ public class ReservationEntity extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long reservationId;
 
-	@Column(name = "reservation_user_id", nullable = false)
+	@Column(nullable = false)
 	private Long userId;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "reservation_slot_id", nullable = false)
-	private RestaurantSlotEntity slot;
+	@Column(nullable = false)
+	private Long slotId;
 
-	@Column(name = "reservation_visit_at", nullable = false)
+	@Column(nullable = false)
 	private LocalDateTime visitAt;
 
-	@Column(name = "reservation_party_size", nullable = false)
+	@Column(nullable = false)
 	private Integer partySize;
 
-	@Column(name = "reservation_note")
 	private String note;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "reservation_status", nullable = false, length = 20)
+	@Column(nullable = false, length = 20)
 	private ReservationStatus status;
 
 	@Builder
-	public ReservationEntity(Long userId, RestaurantSlotEntity slot, LocalDateTime visitAt, Integer partySize,
+	public ReservationEntity(Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
 		String note, ReservationStatus status) {
 		this.userId = userId;
-		this.slot = slot;
+		this.slotId = slotId;
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.note = note;
 		this.status = status;
-	}
-
-	public void assignSlot(RestaurantSlotEntity slot) {
-		this.slot = slot;
 	}
 }

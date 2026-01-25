@@ -9,9 +9,7 @@ import com.reservation.tablereservationservice.domain.reservation.ReservationRep
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.infrastructure.reservation.entity.ReservationEntity;
 import com.reservation.tablereservationservice.infrastructure.reservation.mapper.ReservationMapper;
-import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantSlotEntity;
 
-import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 
 @Repository
@@ -19,13 +17,10 @@ import lombok.RequiredArgsConstructor;
 public class JpaReservationRepository implements ReservationRepository {
 
 	private final ReservationEntityRepository reservationEntityRepository;
-	private final EntityManager em;
 
 	@Override
 	public Reservation save(Reservation reservation) {
 		ReservationEntity entity = ReservationMapper.INSTANCE.toEntity(reservation);
-
-		entity.assignSlot(em.getReference(RestaurantSlotEntity.class, reservation.getSlotId()));
 
 		ReservationEntity saved = reservationEntityRepository.save(entity);
 		return ReservationMapper.INSTANCE.toDomain(saved);

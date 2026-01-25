@@ -26,30 +26,29 @@ public class RestaurantEntity extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long restaurantId;
 
-	@Column(name = "restaurant_owner_id", nullable = false)
+	@Column(nullable = false)
 	private Long ownerId;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "restaurant_region_code", nullable = false, length = 10)
+	@Column(nullable = false, length = 10)
 	private RegionCode regionCode;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "restaurant_category_code", nullable = false, length = 10)
+	@Column(nullable = false, length = 10)
 	private CategoryCode categoryCode;
 
-	@Column(name = "restaurant_name", nullable = false, length = 100)
+	@Column(nullable = false, length = 100)
 	private String name;
 
-	@Column(name = "restaurant_address", nullable = false)
+	@Column(nullable = false)
 	private String address;
 
-	@Column(name = "restaurant_description", columnDefinition = "TEXT")
+	@Column(columnDefinition = "TEXT")
 	private String description;
 
-	@Column(name = "restaurant_main_menu_name", length = 100)
+	@Column(length = 100)
 	private String mainMenuName;
 
-	@Column(name = "restaurant_main_menu_price")
 	private Integer mainMenuPrice;
 
 	@Builder

@@ -19,10 +19,8 @@ public interface RestaurantMapper {
 
 	RestaurantEntity toEntity(Restaurant restaurant);
 
-	@Mapping(target = "restaurantId", source = "restaurant.restaurantId")
 	RestaurantSlot toDomain(RestaurantSlotEntity entity);
 
-	@Mapping(target = "restaurant", ignore = true)
 	RestaurantSlotEntity toEntity(RestaurantSlot restaurantSlot);
 
 }
