@@ -105,9 +105,7 @@ class ReservationServiceTest {
 		assertThat(saved.getPartySize()).isEqualTo(partySize);
 		assertThat(saved.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 
-		ArgumentCaptor<DailySlotCapacity> capacityCaptor = ArgumentCaptor.forClass(DailySlotCapacity.class);
-		verify(dailySlotCapacityRepository, times(1)).update(capacityCaptor.capture());
-		assertThat(capacityCaptor.getValue().getRemainingCount()).isEqualTo(8);
+		verify(dailySlotCapacityRepository, times(1)).updateRemainingCount(eq(777L), eq(8));
 	}
 
 	@Test
@@ -185,7 +183,7 @@ class ReservationServiceTest {
 				.isEqualTo(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
 
 		verify(reservationRepository, never()).save(any());
-		verify(dailySlotCapacityRepository, never()).update(any());
+		verify(dailySlotCapacityRepository, never()).updateRemainingCount(anyLong(), anyInt());
 	}
 
 	@Test
@@ -224,7 +222,7 @@ class ReservationServiceTest {
 				.isEqualTo(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH));
 
 		verify(reservationRepository, never()).save(any());
-		verify(dailySlotCapacityRepository, never()).update(any());
+		verify(dailySlotCapacityRepository, never()).updateRemainingCount(anyLong(), anyInt());
 	}
 
 	@Test

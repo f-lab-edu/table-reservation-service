@@ -36,11 +36,11 @@ public class JpaDailySlotCapacityRepository implements DailySlotCapacityReposito
 	}
 
 	@Override
-	public void update(DailySlotCapacity dailySlotCapacity) {
-		DailySlotCapacityEntity entity = dailySlotCapacityEntityRepository.findById(dailySlotCapacity.getCapacityId())
+	public void updateRemainingCount(Long capacityId, Integer remainingCount) {
+		DailySlotCapacityEntity entity = dailySlotCapacityEntityRepository.findById(capacityId)
 			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "DailySlotCapacity"));
 
-		entity.updateRemainingCount(dailySlotCapacity.getRemainingCount());
+		entity.updateRemainingCount(remainingCount);
 
 		dailySlotCapacityEntityRepository.save(entity);
 	}

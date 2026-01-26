@@ -85,7 +85,7 @@ public class ReservationService {
 		if (!capacity.decrease(partySize)) {
 			throw new ReservationException(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH);
 		}
-		dailySlotCapacityRepository.update(capacity);
+		dailySlotCapacityRepository.updateRemainingCount(capacity.getCapacityId(), capacity.getRemainingCount());
 	}
 
 }

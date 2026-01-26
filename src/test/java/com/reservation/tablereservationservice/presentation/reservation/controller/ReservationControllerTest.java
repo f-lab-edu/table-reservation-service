@@ -34,7 +34,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
-import com.reservation.tablereservationservice.global.config.SecurityConfig;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
@@ -243,16 +242,16 @@ class ReservationControllerTest {
 	}
 
 	@TestConfiguration
-	@EnableMethodSecurity(prePostEnabled = true)
+	@EnableMethodSecurity
 	static class TestSecurityConfig {
 
-	    @Bean
+		@Bean
 		SecurityFilterChain testFilterChain(HttpSecurity http) throws Exception {
-	        // WebMvcTest에서 403/401/CSRF 흐름만 확인하려면 최소 설정으로 둠
-	        return http
-	            .csrf(csrf -> csrf.disable())
-	            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-	            .build();
-	    }
+			// WebMvcTest에서 403/401/CSRF 흐름만 확인하려면 최소 설정으로 둠
+			return http
+				.csrf(csrf -> csrf.disable())
+				.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+				.build();
+		}
 	}
 }
