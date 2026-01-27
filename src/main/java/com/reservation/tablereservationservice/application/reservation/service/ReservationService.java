@@ -1,8 +1,13 @@
 package com.reservation.tablereservationservice.application.reservation.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +22,8 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 import lombok.RequiredArgsConstructor;
@@ -67,6 +74,28 @@ public class ReservationService {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
 		}
 
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponseDto<ReservationListResponseDto> findMyReservations(
+		String email, LocalDate fromDate,
+		LocalDate toDate, ReservationStatus status, Pageable pageable
+	) {
+		User user = userRepository.fetchByEmail(email);
+
+		LocalDate start = Optional.ofNullable(fromDate).orElse(LocalDate.now());
+		LocalDate end = Optional.ofNullable(toDate).orElse(start.plusMonths(1));
+
+		Page<ReservationListResponseDto> page =
+			reservationRepository.findMyReservations(
+				user.getUserId(),
+				status,
+				start.atStartOfDay(),
+				end.atTime(LocalTime.MAX),
+				pageable
+			);
+
+		return PageResponseDto.from(page);
 	}
 
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {

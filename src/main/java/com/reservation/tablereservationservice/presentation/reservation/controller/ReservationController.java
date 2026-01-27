@@ -1,15 +1,26 @@
 package com.reservation.tablereservationservice.presentation.reservation.controller;
 
+import java.time.LocalDate;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
+import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.global.annotation.LoginUser;
+import com.reservation.tablereservationservice.global.common.CurrentUser;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
+import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationResponseDto;
 
@@ -25,13 +36,34 @@ public class ReservationController {
 
 	@PreAuthorize("hasRole('CUSTOMER')")
 	@PostMapping
-	public ApiResponse<ReservationResponseDto> create(@Valid @RequestBody ReservationRequestDto requestDto,
-		Authentication authentication) {
-		String email = (String)authentication.getPrincipal();
-		Reservation reservation = reservationService.create(email, requestDto);
+	public ApiResponse<ReservationResponseDto> create(
+		@Valid @RequestBody ReservationRequestDto requestDto,
+		@LoginUser CurrentUser user
+	) {
+		Reservation reservation = reservationService.create(user.email(), requestDto);
 		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
 
 		return ApiResponse.success("예약 요청 성공", responseDto);
+	}
+
+	@PreAuthorize("hasRole('CUSTOMER')")
+	@GetMapping("/me")
+	public ApiResponse<PageResponseDto<ReservationListResponseDto>> getReservations(
+		@RequestParam(required = false) LocalDate fromDate,
+		@RequestParam(required = false) LocalDate toDate,
+		@RequestParam(required = false) ReservationStatus status,
+		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
+		@LoginUser CurrentUser user
+	) {
+
+		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findMyReservations(
+			user.email(),
+			fromDate,
+			toDate, status,
+			pageable
+		);
+
+		return ApiResponse.success("예약 조회 성공", responseDto);
 	}
 
 }
