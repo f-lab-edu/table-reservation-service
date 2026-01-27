@@ -1,6 +1,7 @@
 package com.reservation.tablereservationservice.domain.reservation;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,11 @@ public interface ReservationRepository {
 
 	Page<ReservationListResponseDto> findMyReservations(
 		Long userId, ReservationStatus status, LocalDateTime from,
+		LocalDateTime to, Pageable pageable
+	);
+
+	Page<ReservationListResponseDto> findOwnerReservations(
+		List<Long> restaurantIds, ReservationStatus status, LocalDateTime from,
 		LocalDateTime to, Pageable pageable
 	);
 

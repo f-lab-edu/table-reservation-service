@@ -1,6 +1,7 @@
 package com.reservation.tablereservationservice.infrastructure.reservation.repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,7 +32,8 @@ public class JpaReservationRepository implements ReservationRepository {
 
 	@Override
 	public boolean existsByUserIdAndVisitAtAndStatus(
-		Long userId, LocalDateTime visitAt,
+		Long userId,
+		LocalDateTime visitAt,
 		ReservationStatus reservationStatus
 	) {
 		return reservationEntityRepository.existsByUserIdAndVisitAtAndStatus(userId, visitAt, reservationStatus);
@@ -39,10 +41,24 @@ public class JpaReservationRepository implements ReservationRepository {
 
 	@Override
 	public Page<ReservationListResponseDto> findMyReservations(
-		Long userId, ReservationStatus status,
-		LocalDateTime from, LocalDateTime to, Pageable pageable
+		Long userId,
+		ReservationStatus status,
+		LocalDateTime from,
+		LocalDateTime to,
+		Pageable pageable
 	) {
 		return reservationEntityRepository.findMyReservationList(userId, status, from, to, pageable);
+	}
+
+	@Override
+	public Page<ReservationListResponseDto> findOwnerReservations(
+		List<Long> restaurantIds,
+		ReservationStatus status,
+		LocalDateTime from,
+		LocalDateTime to,
+		Pageable pageable
+	) {
+		return reservationEntityRepository.findOwnerReservations(restaurantIds, status, from, to, pageable);
 	}
 
 	@Override

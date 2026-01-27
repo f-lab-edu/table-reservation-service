@@ -48,7 +48,7 @@ public class ReservationController {
 
 	@PreAuthorize("hasRole('CUSTOMER')")
 	@GetMapping("/me")
-	public ApiResponse<PageResponseDto<ReservationListResponseDto>> getReservations(
+	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findMyReservations(
 		@RequestParam(required = false) LocalDate fromDate,
 		@RequestParam(required = false) LocalDate toDate,
 		@RequestParam(required = false) ReservationStatus status,
@@ -59,11 +59,33 @@ public class ReservationController {
 		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findMyReservations(
 			user.email(),
 			fromDate,
-			toDate, status,
+			toDate,
+			status,
 			pageable
 		);
 
 		return ApiResponse.success("예약 조회 성공", responseDto);
+	}
+
+	@PreAuthorize("hasRole('OWNER')")
+	@GetMapping("/owner")
+	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findOwnerReservations(
+		@RequestParam(required = false) LocalDate fromDate,
+		@RequestParam(required = false) LocalDate toDate,
+		@RequestParam(required = false) ReservationStatus status,
+		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
+		@LoginUser CurrentUser user
+	) {
+		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findOwnerReservations(
+			user.email(),
+			fromDate,
+			toDate,
+			status,
+			pageable
+		);
+
+		return ApiResponse.success("예약 조회 성공", responseDto);
+
 	}
 
 }

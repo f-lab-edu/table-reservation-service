@@ -3,6 +3,7 @@ package com.reservation.tablereservationservice.application.reservation.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,6 +17,7 @@ import com.reservation.tablereservationservice.domain.reservation.DailySlotCapac
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
 import com.reservation.tablereservationservice.domain.user.User;
@@ -38,6 +40,7 @@ public class ReservationService {
 	private final RestaurantSlotRepository restaurantSlotRepository;
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationRepository reservationRepository;
+	private final RestaurantRepository restaurantRepository;
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
@@ -89,6 +92,37 @@ public class ReservationService {
 		Page<ReservationListResponseDto> page =
 			reservationRepository.findMyReservations(
 				user.getUserId(),
+				status,
+				start.atStartOfDay(),
+				end.atTime(LocalTime.MAX),
+				pageable
+			);
+
+		return PageResponseDto.from(page);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponseDto<ReservationListResponseDto> findOwnerReservations(
+		String email,
+		LocalDate fromDate,
+		LocalDate toDate,
+		ReservationStatus status,
+		Pageable pageable
+	) {
+		User owner = userRepository.fetchByEmail(email);
+
+		LocalDate start = Optional.ofNullable(fromDate).orElse(LocalDate.now());
+		LocalDate end = Optional.ofNullable(toDate).orElse(start.plusMonths(1));
+
+		List<Long> restaurantIds = restaurantRepository.findRestaurantIdsByOwnerId(owner.getUserId());
+
+		if (restaurantIds.isEmpty()) {
+			return PageResponseDto.from(Page.empty(pageable));
+		}
+
+		Page<ReservationListResponseDto> page =
+			reservationRepository.findOwnerReservations(
+				restaurantIds,
 				status,
 				start.atStartOfDay(),
 				end.atTime(LocalTime.MAX),

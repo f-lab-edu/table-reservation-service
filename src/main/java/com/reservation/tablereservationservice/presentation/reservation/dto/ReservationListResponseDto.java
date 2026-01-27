@@ -10,6 +10,9 @@ import lombok.Getter;
 @Getter
 public class ReservationListResponseDto {
 
+	private String userName;
+	private String userPhone;
+	private String note;
 	private Long reservationId;
 	private Long restaurantId;
 	private String restaurantName;
@@ -18,9 +21,14 @@ public class ReservationListResponseDto {
 	private ReservationStatus status;
 
 	@Builder
-	public ReservationListResponseDto(Long reservationId, Long restaurantId, String restaurantName,
+	public ReservationListResponseDto(
+		String userName, String userPhone, String note, Long reservationId, Long restaurantId, String restaurantName,
 		LocalDateTime visitAt,
-		int partySize, ReservationStatus status) {
+		int partySize, ReservationStatus status
+	) {
+		this.userName = userName;
+		this.userPhone = userPhone;
+		this.note = note;
 		this.reservationId = reservationId;
 		this.restaurantId = restaurantId;
 		this.restaurantName = restaurantName;
