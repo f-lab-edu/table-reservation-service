@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
+import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.restaurant.CategoryCode;
 import com.reservation.tablereservationservice.domain.restaurant.RegionCode;
@@ -203,5 +204,75 @@ class ReservationControllerIntegrationTest {
 			.body("data.slotId", notNullValue())
 			.body("data.date", notNullValue())
 			.body("data.partySize", notNullValue());
+	}
+
+	@Test
+	@DisplayName("내 예약 목록 조회 성공")
+	void getReservations_me_success_whenCustomerRole() {
+		// given: 예약 1건 생성
+		User customer = userRepository.fetchByEmail("customer@test.com");
+
+		reservationRepository.save(Reservation.builder()
+			.userId(customer.getUserId())
+			.slotId(slotId)
+			.visitAt(java.time.LocalDateTime.of(date, slotTime))
+			.partySize(2)
+			.note("note")
+			.status(com.reservation.tablereservationservice.domain.reservation.ReservationStatus.CONFIRMED)
+			.build());
+
+		// when & then
+		given()
+			.contentType(ContentType.JSON)
+			.header("Authorization", "Bearer " + customerAccessToken)
+			.queryParam("fromDate", "2026-01-01")
+			.queryParam("toDate", "2026-02-01")
+		.when()
+			.get("/api/reservations/me")
+		.then()
+			.statusCode(200)
+			.body("code", equalTo(200))
+			.body("message", equalTo("예약 조회 성공"))
+			.body("data", notNullValue())
+			.body("data.content.size()", equalTo(1))
+			.body("data.content[0].restaurantName", equalTo("강남 한상"))
+			.body("data.content[0].partySize", equalTo(2))
+			.body("data.content[0].status", equalTo("CONFIRMED"))
+			.body("data.content[0].visitAt", equalTo("2026-01-26T19:00:00"));
+	}
+
+	@Test
+	@DisplayName("점주 예약 목록 조회 성공")
+	void getReservations_owner_success_whenOwnerRole() {
+		// given: 예약 1건 생성
+		User customer = userRepository.fetchByEmail("customer@test.com");
+
+		reservationRepository.save(com.reservation.tablereservationservice.domain.reservation.Reservation.builder()
+			.userId(customer.getUserId())
+			.slotId(slotId)
+			.visitAt(java.time.LocalDateTime.of(date, slotTime))
+			.partySize(2)
+			.note("note")
+			.status(com.reservation.tablereservationservice.domain.reservation.ReservationStatus.CONFIRMED)
+			.build());
+
+		// when & then
+		given()
+			.contentType(ContentType.JSON)
+			.header("Authorization", "Bearer " + ownerAccessToken)
+			.queryParam("fromDate", "2026-01-01")
+			.queryParam("toDate", "2026-02-01")
+		.when()
+			.get("/api/reservations/owner")
+		.then()
+			.statusCode(200)
+			.body("code", equalTo(200))
+			.body("message", equalTo("예약 조회 성공"))
+			.body("data", notNullValue())
+			.body("data.content.size()", equalTo(1))
+			.body("data.content[0].restaurantName", equalTo("강남 한상"))
+			.body("data.content[0].partySize", equalTo(2))
+			.body("data.content[0].status", equalTo("CONFIRMED"))
+			.body("data.content[0].visitAt", equalTo("2026-01-26T19:00:00"));
 	}
 }

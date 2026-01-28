@@ -11,6 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,8 @@ import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.domain.user.UserRole;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 @SpringBootTest
@@ -55,20 +59,22 @@ class ReservationServiceIntegrationTest {
 	@Autowired
 	private ReservationRepository reservationRepository;
 
-	private String email;
+	private String customerEmail;
+	private String ownerEmail;
 	private Long userId;
 	private Long slotId;
 	private LocalDate date;
 	private LocalTime slotTime;
+	private Long restaurantId;
 
 	@BeforeEach
 	void setUp() {
-		this.email = "customer01@test.com";
+		this.customerEmail = "customer01@test.com";
 		this.date = LocalDate.now();
 		this.slotTime = LocalTime.of(19, 0);
 
 		User customer = User.builder()
-			.email(email)
+			.email(customerEmail)
 			.name("customer01")
 			.phone("010-0000-0000")
 			.password("encrypted-password")
@@ -84,6 +90,7 @@ class ReservationServiceIntegrationTest {
 			.userRole(UserRole.OWNER)
 			.build();
 		User savedOwner = userRepository.save(owner);
+		this.ownerEmail = savedOwner.getEmail();
 
 		Restaurant restaurant = Restaurant.builder()
 			.name("강남 한상")
@@ -93,6 +100,7 @@ class ReservationServiceIntegrationTest {
 			.ownerId(savedOwner.getUserId())
 			.build();
 		Restaurant savedRestaurant = restaurantRepository.save(restaurant);
+		this.restaurantId = savedRestaurant.getRestaurantId();
 
 		RestaurantSlot restaurantSlot = RestaurantSlot.builder()
 			.restaurantId(savedRestaurant.getRestaurantId())
@@ -120,7 +128,7 @@ class ReservationServiceIntegrationTest {
 		assertThat(before.getRemainingCount()).isEqualTo(10);
 
 		// when
-		Reservation saved = reservationService.create(email, req);
+		Reservation saved = reservationService.create(customerEmail, req);
 
 		// then
 		assertThat(saved.getReservationId()).isNotNull();
@@ -135,8 +143,10 @@ class ReservationServiceIntegrationTest {
 		assertThat(after.getRemainingCount()).isEqualTo(8);
 
 		// 저장된 예약이 실제로 CONFIRMED로 존재하는지
-		assertThat(reservationRepository.existsByUserIdAndVisitAtAndStatus(userId, visitAt,
-			ReservationStatus.CONFIRMED)).isTrue();
+		assertThat(reservationRepository.existsByUserIdAndVisitAtAndStatus(
+			userId, visitAt,
+			ReservationStatus.CONFIRMED
+		)).isTrue();
 	}
 
 	@Test
@@ -145,11 +155,14 @@ class ReservationServiceIntegrationTest {
 		// given
 		// 첫 번째 예약
 		saveCapacity(slotId, date, 10);
-		reservationService.create(email, new ReservationRequestDto(slotId, date, 2, ""));
+		reservationService.create(customerEmail, new ReservationRequestDto(slotId, date, 2, ""));
 
 		// when & then
 		// 동일한 조건으로 다시 예약 (동일 유저, 같은 날짜)
-		assertThatThrownBy(() -> reservationService.create(email, new ReservationRequestDto(slotId, date, 2, "")))
+		assertThatThrownBy(() -> reservationService.create(
+			customerEmail,
+			new ReservationRequestDto(slotId, date, 2, "")
+		))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> {
 				ReservationException re = (ReservationException)ex;
@@ -177,7 +190,7 @@ class ReservationServiceIntegrationTest {
 
 		// when & then
 		assertThatThrownBy(
-			() -> reservationService.create(email, new ReservationRequestDto(slotId, date, partySize, "")))
+			() -> reservationService.create(customerEmail, new ReservationRequestDto(slotId, date, partySize, "")))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> {
 				ReservationException re = (ReservationException)ex;
@@ -198,12 +211,72 @@ class ReservationServiceIntegrationTest {
 		ReservationRequestDto req = new ReservationRequestDto(slotId, date, 2, "");
 
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(email, req))
+		assertThatThrownBy(() -> reservationService.create(customerEmail, req))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> {
 				ReservationException re = (ReservationException)ex;
 				assertThat(re.getErrorCode()).isEqualTo(ErrorCode.RESERVATION_SLOT_NOT_OPENED);
 			});
+	}
+
+	@Test
+	@DisplayName("사용자 예약 목록 조회 성공")
+	void findMyReservations_success() {
+		// given
+		// 조회용 데이터 준비: capacity 저장 + 예약 1건 생성
+		saveCapacity(slotId, date, 10);
+
+		ReservationRequestDto req = new ReservationRequestDto(slotId, date, 2, "note");
+		reservationService.create(customerEmail, req);
+		Pageable pageable = PageRequest.of(0, 10);
+
+		// when
+		PageResponseDto<ReservationListResponseDto> result =
+			reservationService.findMyReservations(customerEmail, null, null, null, pageable);
+
+		// then
+		assertThat(result).isNotNull();
+		assertThat(result.getContent()).hasSize(1);
+
+		ReservationListResponseDto first = result.getContent().get(0);
+		assertThat(first.getReservationId()).isNotNull();
+		assertThat(first.getRestaurantId()).isEqualTo(restaurantId);
+		assertThat(first.getRestaurantName()).isEqualTo("강남 한상");
+		assertThat(first.getVisitAt()).isEqualTo(LocalDateTime.of(date, slotTime));
+		assertThat(first.getPartySize()).isEqualTo(2);
+		assertThat(first.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(first.getUserName()).isEqualTo("customer01");
+		assertThat(first.getUserPhone()).isEqualTo("010-0000-0000");
+	}
+
+	@Test
+	@DisplayName("점주 예약 목록 조회 성공")
+	void findOwnerReservations_success() {
+		// given
+		// 조회용 데이터 준비: capacity 저장 + 예약 1건 생성
+		saveCapacity(slotId, date, 10);
+
+		ReservationRequestDto req = new ReservationRequestDto(slotId, date, 2, "note");
+		reservationService.create(customerEmail, req);
+		Pageable pageable = PageRequest.of(0, 10);
+
+		// when
+		PageResponseDto<ReservationListResponseDto> result =
+			reservationService.findOwnerReservations(ownerEmail, null, null, null, pageable);
+
+		// then
+		assertThat(result).isNotNull();
+		assertThat(result.getContent()).hasSize(1);
+
+		ReservationListResponseDto first = result.getContent().get(0);
+		assertThat(first.getReservationId()).isNotNull();
+		assertThat(first.getRestaurantId()).isEqualTo(restaurantId);
+		assertThat(first.getRestaurantName()).isEqualTo("강남 한상");
+		assertThat(first.getVisitAt()).isEqualTo(LocalDateTime.of(date, slotTime));
+		assertThat(first.getPartySize()).isEqualTo(2);
+		assertThat(first.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(first.getUserName()).isEqualTo("customer01");
+		assertThat(first.getUserPhone()).isEqualTo("010-0000-0000");
 	}
 
 	private void saveCapacity(Long slotId, LocalDate date, int remainingCount) {

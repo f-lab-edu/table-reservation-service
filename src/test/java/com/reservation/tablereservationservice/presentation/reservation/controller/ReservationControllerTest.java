@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +19,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -38,6 +43,8 @@ import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
+import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationResponseDto;
 
@@ -88,7 +95,7 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
 		);
 
 		// when
@@ -132,7 +139,7 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
 		);
 
 		// when
@@ -177,7 +184,7 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_OWNER"))
+			List.of(new SimpleGrantedAuthority("ROLE_OWNER"))
 		);
 
 		// when
@@ -210,7 +217,7 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
 		);
 		// when
 		MvcResult mvcResult = mockMvc.perform(post("/api/reservations")
@@ -231,6 +238,127 @@ class ReservationControllerTest {
 		assertThat(response.getData()).isNull();
 
 		verify(reservationService, times(1)).create(eq(email), any(ReservationRequestDto.class));
+	}
+
+	@Test
+	@DisplayName("내 예약 목록 조회 성공 - 200 및 응답 바디 반환")
+	void getReservations_me_success_whenCustomerRole() throws Exception {
+		// given
+		String email = "customer01@test.com";
+
+		ReservationListResponseDto content = ReservationListResponseDto.builder()
+			.reservationId(1L)
+			.restaurantId(1L)
+			.restaurantName("테스트 식당")
+			.visitAt(LocalDateTime.of(2026, 1, 27, 12, 0))
+			.partySize(2)
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		Pageable pageable = PageRequest.of(0, 10);
+		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(content), pageable, 1);
+		PageResponseDto<ReservationListResponseDto> responseDto = PageResponseDto.from(page);
+
+		given(reservationService.findMyReservations(
+			eq(email),
+			any(),
+			any(),
+			any(),
+			any(Pageable.class)
+		)).willReturn(responseDto);
+
+		Authentication auth = new UsernamePasswordAuthenticationToken(
+			email,
+			null,
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+		);
+
+		// when
+		MvcResult mvcResult = mockMvc.perform(get("/api/reservations/me")
+				.with(authentication(auth))
+				.param("fromDate", "2026-01-27")
+				.param("toDate", "2026-02-27")
+				.param("status", "CONFIRMED"))
+			.andReturn();
+
+		// then
+		ApiResponse<Object> response = readResponse(
+			mvcResult,
+			new TypeReference<ApiResponse<Object>>() {
+			}
+		);
+
+		assertThat(response.getCode()).isEqualTo(200);
+		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
+		assertThat(response.getData()).isNotNull();
+
+		verify(reservationService, times(1)).findMyReservations(
+			eq(email),
+			any(),
+			any(),
+			any(),
+			any(Pageable.class)
+		);
+	}
+
+	@Test
+	@DisplayName("점주 예약 목록 조회 성공 - 200 및 응답 바디 반환")
+	void getReservations_owner_success_whenOwnerRole() throws Exception {
+		// given
+		String email = "owner@test.com";
+
+		ReservationListResponseDto content = ReservationListResponseDto.builder()
+			.reservationId(1L)
+			.restaurantId(1L)
+			.restaurantName("테스트 식당")
+			.visitAt(LocalDateTime.of(2026, 1, 27, 12, 0))
+			.partySize(2)
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		Pageable pageable = PageRequest.of(0, 10);
+		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(content), pageable, 1);
+		PageResponseDto<ReservationListResponseDto> responseDto = PageResponseDto.from(page);
+
+		given(reservationService.findOwnerReservations(
+			eq(email),
+			any(),
+			any(),
+			any(),
+			any(Pageable.class)
+		)).willReturn(responseDto);
+
+		Authentication auth = new UsernamePasswordAuthenticationToken(
+			email,
+			null,
+			List.of(new SimpleGrantedAuthority("ROLE_OWNER"))
+		);
+
+		// when
+		MvcResult mvcResult = mockMvc.perform(get("/api/reservations/owner")
+				.with(authentication(auth))
+				.param("fromDate", "2026-01-27")
+				.param("toDate", "2026-02-27"))
+			.andReturn();
+
+		// then
+		ApiResponse<Object> response = readResponse(
+			mvcResult,
+			new TypeReference<ApiResponse<Object>>() {
+			}
+		);
+
+		assertThat(response.getCode()).isEqualTo(200);
+		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
+		assertThat(response.getData()).isNotNull();
+
+		verify(reservationService, times(1)).findOwnerReservations(
+			eq(email),
+			any(),
+			any(),
+			any(),
+			any(Pageable.class)
+		);
 	}
 
 	private <T> ApiResponse<T> readResponse(
