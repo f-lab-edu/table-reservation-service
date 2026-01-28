@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -43,6 +44,17 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 			.status(errorCode.getStatus())
 			.body(ApiResponse.error(errorCode.getStatus(), errorCode.getMessage(), errors));
+	}
+
+	@ExceptionHandler(AuthorizationDeniedException.class)
+	public ResponseEntity<ApiResponse<Void>> handleAuthorizationDeniedException(AuthorizationDeniedException e) {
+		log.warn("Authorization denied: {}", e.getMessage());
+
+		ErrorCode errorCode = ErrorCode.ACCESS_DENIED; // 403
+
+		return ResponseEntity
+			.status(errorCode.getStatus())
+			.body(ApiResponse.error(errorCode.getStatus(), errorCode.getMessage()));
 	}
 
 	@ExceptionHandler(Exception.class)
