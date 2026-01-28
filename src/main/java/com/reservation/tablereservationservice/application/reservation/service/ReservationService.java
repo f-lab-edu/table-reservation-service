@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.application.reservation.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -69,6 +70,19 @@ public class ReservationService {
 
 	}
 
+	@Transactional
+	public Reservation cancel(String email, Long reservationId) {
+		User user = userRepository.fetchByEmail(email);
+
+		Reservation reservation = reservationRepository.fetchById(reservationId);
+
+		validateCancelable(user.getUserId(), reservation);
+		reservation.cancel();
+		restoreCapacity(reservation.getSlotId(), reservation.getVisitAt().toLocalDate(), reservation.getPartySize());
+
+		return reservationRepository.save(reservation);
+	}
+
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {
 		if (reservationRepository.existsByUserIdAndVisitAtAndStatus(userId, visitAt, ReservationStatus.CONFIRMED)) {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
@@ -85,6 +99,30 @@ public class ReservationService {
 		if (!capacity.decrease(partySize)) {
 			throw new ReservationException(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH);
 		}
+		dailySlotCapacityRepository.updateRemainingCount(capacity.getCapacityId(), capacity.getRemainingCount());
+	}
+
+	private void validateCancelable(Long userId, Reservation reservation) {
+		if(!reservation.getUserId().equals(userId)) {
+			throw new ReservationException(ErrorCode.RESERVATION_FORBIDDEN);
+		}
+
+		if(reservation.getStatus() == ReservationStatus.CANCELED) {
+			throw new ReservationException(ErrorCode.RESERVATION_ALREADY_CANCELED);
+		}
+
+		LocalDateTime cancelDeadline = reservation.getVisitAt().minusHours(24);
+		if (!LocalDateTime.now().isBefore(cancelDeadline)) {
+			throw new ReservationException(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED);
+		}
+	}
+
+	private void restoreCapacity(Long slotId, LocalDate date, int partySize) {
+		DailySlotCapacity capacity = dailySlotCapacityRepository
+			.findBySlotIdAndDate(slotId, date)
+			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Capacity"));
+
+		capacity.increase(partySize);
 		dailySlotCapacityRepository.updateRemainingCount(capacity.getCapacityId(), capacity.getRemainingCount());
 	}
 

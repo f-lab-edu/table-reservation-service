@@ -2,6 +2,7 @@ package com.reservation.tablereservationservice.presentation.reservation.control
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,6 +33,16 @@ public class ReservationController {
 		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
 
 		return ApiResponse.success("예약 요청 성공", responseDto);
+	}
+
+	@PreAuthorize("hasRole('CUSTOMER')")
+	@PostMapping("/{reservationId}/cancel")
+	public ApiResponse<ReservationResponseDto> cancel(@PathVariable Long reservationId, Authentication authentication) {
+		String email = (String)authentication.getPrincipal();
+		Reservation reservation = reservationService.cancel(email, reservationId);
+		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
+
+		return ApiResponse.success("예약 취소 성공", responseDto);
 	}
 
 }

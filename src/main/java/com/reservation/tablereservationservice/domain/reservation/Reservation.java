@@ -28,4 +28,8 @@ public class Reservation {
 		this.status = status;
 	}
 
+	public void cancel() {
+		this.status = ReservationStatus.CANCELED;
+	}
+
 }
