@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
@@ -36,13 +37,14 @@ public class JpaDailySlotCapacityRepository implements DailySlotCapacityReposito
 	}
 
 	@Override
-	public void updateRemainingCount(Long capacityId, Integer remainingCount) {
-		DailySlotCapacityEntity entity = dailySlotCapacityEntityRepository.findById(capacityId)
+	@Transactional
+	public void updateRemainingCount(DailySlotCapacity capacity) {
+		DailySlotCapacityEntity entity = dailySlotCapacityEntityRepository.findById(capacity.getCapacityId())
 			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "DailySlotCapacity"));
 
-		entity.updateRemainingCount(remainingCount);
+		entity.updateRemainingCount(capacity.getRemainingCount());
 
-		dailySlotCapacityEntityRepository.save(entity);
+		// save() 호출 없음 -> 영속성 컨텍스트 변경 감지로 UPDATE
 	}
 
 	@Override
