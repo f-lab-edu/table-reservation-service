@@ -9,12 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -49,6 +49,7 @@ import com.reservation.tablereservationservice.presentation.common.PageResponseD
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 @WebMvcTest(ReservationController.class)
 @Import({GlobalExceptionHandler.class, ReservationControllerTest.TestSecurityConfig.class})
@@ -263,10 +264,7 @@ class ReservationControllerTest {
 
 		given(reservationService.findMyReservations(
 			eq(email),
-			any(),
-			any(),
-			any(),
-			any(Pageable.class)
+			any(ReservationSearchDto.class)
 		)).willReturn(responseDto);
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
@@ -295,13 +293,8 @@ class ReservationControllerTest {
 		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
 		assertThat(response.getData()).isNotNull();
 
-		verify(reservationService).findMyReservations(
-			eq(email),
-			any(),
-			any(),
-			any(),
-			any(Pageable.class)
-		);
+		ArgumentCaptor<ReservationSearchDto> searchCaptor = ArgumentCaptor.forClass(ReservationSearchDto.class);
+		verify(reservationService).findMyReservations(eq(email), searchCaptor.capture());
 	}
 
 	@Test
@@ -325,10 +318,7 @@ class ReservationControllerTest {
 
 		given(reservationService.findOwnerReservations(
 			eq(email),
-			any(),
-			any(),
-			any(),
-			any(Pageable.class)
+			any(ReservationSearchDto.class)
 		)).willReturn(responseDto);
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
@@ -341,7 +331,8 @@ class ReservationControllerTest {
 		MvcResult mvcResult = mockMvc.perform(get("/api/reservations/owner")
 				.with(authentication(auth))
 				.param("fromDate", "2026-01-27")
-				.param("toDate", "2026-02-27"))
+				.param("toDate", "2026-02-27")
+				.param("status", "CONFIRMED"))
 			.andExpect(status().isOk())
 			.andReturn();
 
@@ -356,13 +347,8 @@ class ReservationControllerTest {
 		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
 		assertThat(response.getData()).isNotNull();
 
-		verify(reservationService).findOwnerReservations(
-			eq(email),
-			any(),
-			any(),
-			any(),
-			any(Pageable.class)
-		);
+		ArgumentCaptor<ReservationSearchDto> searchCaptor = ArgumentCaptor.forClass(ReservationSearchDto.class);
+		verify(reservationService).findOwnerReservations(eq(email), searchCaptor.capture());
 	}
 
 	private <T> ApiResponse<T> readResponse(

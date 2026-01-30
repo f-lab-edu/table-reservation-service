@@ -42,6 +42,7 @@ import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceTest {
@@ -227,7 +228,7 @@ class ReservationServiceTest {
 		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "");
 
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(customer.getEmail(),req))
+		assertThatThrownBy(() -> reservationService.create(customer.getEmail(), req))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 				.isEqualTo(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH));
@@ -242,6 +243,12 @@ class ReservationServiceTest {
 		// given
 		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(reservationResponse(1L)));
 
+		ReservationSearchDto searchDto = new ReservationSearchDto();
+		searchDto.setFromDate(TEST_DATE);
+		searchDto.setToDate(TEST_DATE);
+		searchDto.setStatus(ReservationStatus.CONFIRMED);
+		searchDto.setPageable(PAGEABLE);
+
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(reservationRepository.findMyReservations(
 			eq(customer.getUserId()),
@@ -252,13 +259,8 @@ class ReservationServiceTest {
 		)).willReturn(page);
 
 		// when
-		PageResponseDto<ReservationListResponseDto> result = reservationService.findMyReservations(
-			customer.getEmail(),
-			TEST_DATE,
-			TEST_DATE,
-			ReservationStatus.CONFIRMED,
-			PAGEABLE
-		);
+		PageResponseDto<ReservationListResponseDto> result =
+			reservationService.findMyReservations(customer.getEmail(), searchDto);
 
 		// then
 		assertThat(result.getContent()).hasSize(1);
@@ -273,6 +275,12 @@ class ReservationServiceTest {
 		Long ownerRestaurantId = 2L;
 		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(reservationResponse(ownerRestaurantId)));
 
+		ReservationSearchDto searchDto = new ReservationSearchDto();
+		searchDto.setFromDate(TEST_DATE);
+		searchDto.setToDate(TEST_DATE);
+		searchDto.setStatus(ReservationStatus.CONFIRMED);
+		searchDto.setPageable(PAGEABLE);
+
 		given(userRepository.fetchByEmail(owner.getEmail())).willReturn(owner);
 		given(restaurantRepository.findRestaurantIdsByOwnerId(owner.getUserId()))
 			.willReturn(List.of(ownerRestaurantId));
@@ -286,13 +294,8 @@ class ReservationServiceTest {
 		)).willReturn(page);
 
 		// when
-		PageResponseDto<ReservationListResponseDto> result = reservationService.findOwnerReservations(
-			owner.getEmail(),
-			TEST_DATE,
-			TEST_DATE,
-			ReservationStatus.CONFIRMED,
-			PAGEABLE
-		);
+		PageResponseDto<ReservationListResponseDto> result =
+			reservationService.findOwnerReservations(owner.getEmail(), searchDto);
 
 		// then
 		assertThat(result.getContent()).hasSize(1);

@@ -36,6 +36,7 @@ import com.reservation.tablereservationservice.global.exception.ReservationExcep
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -226,20 +227,15 @@ class ReservationServiceIntegrationTest {
 				.build()
 		);
 
-		reservationService.create(
-			customer.getEmail(),
-			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "note")
-		);
+		ReservationSearchDto searchDto = new ReservationSearchDto();
+		searchDto.setFromDate(TEST_DATE);
+		searchDto.setToDate(TEST_DATE);
+		searchDto.setStatus(ReservationStatus.CONFIRMED);
+		searchDto.setPageable(PAGEABLE);
 
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
-			reservationService.findMyReservations(
-				customer.getEmail(),
-				TEST_DATE,
-				TEST_DATE,
-				ReservationStatus.CONFIRMED,
-				PAGEABLE
-			);
+			reservationService.findMyReservations(customer.getEmail(), searchDto);
 
 		// then
 		assertThat(result.getContent()).hasSize(1);
@@ -262,15 +258,15 @@ class ReservationServiceIntegrationTest {
 			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "note")
 		);
 
+		ReservationSearchDto searchDto = new ReservationSearchDto();
+		searchDto.setFromDate(TEST_DATE);
+		searchDto.setToDate(TEST_DATE);
+		searchDto.setStatus(ReservationStatus.CONFIRMED);
+		searchDto.setPageable(PAGEABLE);
+
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
-			reservationService.findOwnerReservations(
-				owner.getEmail(),
-				TEST_DATE,
-				TEST_DATE,
-				ReservationStatus.CONFIRMED,
-				PAGEABLE
-			);
+			reservationService.findOwnerReservations(owner.getEmail(), searchDto);
 
 		// then
 		assertThat(result.getContent()).hasSize(1);

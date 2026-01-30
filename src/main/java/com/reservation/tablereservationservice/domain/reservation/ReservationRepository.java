@@ -15,13 +15,19 @@ public interface ReservationRepository {
 	boolean existsByUserIdAndVisitAtAndStatus(Long userId, LocalDateTime visitAt, ReservationStatus reservationStatus);
 
 	Page<ReservationListResponseDto> findMyReservations(
-		Long userId, ReservationStatus status, LocalDateTime from,
-		LocalDateTime to, Pageable pageable
+		Long userId,
+		ReservationStatus status,
+		LocalDateTime from,
+		LocalDateTime to,
+		Pageable pageable
 	);
 
 	Page<ReservationListResponseDto> findOwnerReservations(
-		List<Long> restaurantIds, ReservationStatus status, LocalDateTime from,
-		LocalDateTime to, Pageable pageable
+		List<Long> restaurantIds,
+		ReservationStatus status,
+		LocalDateTime from,
+		LocalDateTime to,
+		Pageable pageable
 	);
 
 	void deleteAll();

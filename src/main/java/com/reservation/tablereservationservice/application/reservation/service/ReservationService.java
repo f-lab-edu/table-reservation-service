@@ -1,14 +1,11 @@
 package com.reservation.tablereservationservice.application.reservation.service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +24,7 @@ import com.reservation.tablereservationservice.global.exception.ReservationExcep
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -81,21 +79,18 @@ public class ReservationService {
 
 	@Transactional(readOnly = true)
 	public PageResponseDto<ReservationListResponseDto> findMyReservations(
-		String email, LocalDate fromDate,
-		LocalDate toDate, ReservationStatus status, Pageable pageable
+		String email,
+		ReservationSearchDto searchDto
 	) {
 		User user = userRepository.fetchByEmail(email);
-
-		LocalDate start = Optional.ofNullable(fromDate).orElse(LocalDate.now());
-		LocalDate end = Optional.ofNullable(toDate).orElse(start.plusMonths(1));
 
 		Page<ReservationListResponseDto> page =
 			reservationRepository.findMyReservations(
 				user.getUserId(),
-				status,
-				start.atStartOfDay(),
-				end.atTime(LocalTime.MAX),
-				pageable
+				searchDto.getStatus(),
+				searchDto.getStartDate().atStartOfDay(),
+				searchDto.getEndDate().atTime(LocalTime.MAX),
+				searchDto.getPageable()
 			);
 
 		return PageResponseDto.from(page);
@@ -104,29 +99,23 @@ public class ReservationService {
 	@Transactional(readOnly = true)
 	public PageResponseDto<ReservationListResponseDto> findOwnerReservations(
 		String email,
-		LocalDate fromDate,
-		LocalDate toDate,
-		ReservationStatus status,
-		Pageable pageable
+		ReservationSearchDto searchDto
 	) {
 		User owner = userRepository.fetchByEmail(email);
-
-		LocalDate start = Optional.ofNullable(fromDate).orElse(LocalDate.now());
-		LocalDate end = Optional.ofNullable(toDate).orElse(start.plusMonths(1));
 
 		List<Long> restaurantIds = restaurantRepository.findRestaurantIdsByOwnerId(owner.getUserId());
 
 		if (restaurantIds.isEmpty()) {
-			return PageResponseDto.from(Page.empty(pageable));
+			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
 		}
 
 		Page<ReservationListResponseDto> page =
 			reservationRepository.findOwnerReservations(
 				restaurantIds,
-				status,
-				start.atStartOfDay(),
-				end.atTime(LocalTime.MAX),
-				pageable
+				searchDto.getStatus(),
+				searchDto.getStartDate().atStartOfDay(),
+				searchDto.getEndDate().atTime(LocalTime.MAX),
+				searchDto.getPageable()
 			);
 
 		return PageResponseDto.from(page);

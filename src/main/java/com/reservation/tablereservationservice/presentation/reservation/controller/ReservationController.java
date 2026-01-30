@@ -1,21 +1,18 @@
 package com.reservation.tablereservationservice.presentation.reservation.controller;
 
-import java.time.LocalDate;
-
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
-import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.global.annotation.LoginUser;
 import com.reservation.tablereservationservice.global.common.CurrentUser;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
@@ -23,6 +20,7 @@ import com.reservation.tablereservationservice.presentation.common.PageResponseD
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,19 +47,15 @@ public class ReservationController {
 	@PreAuthorize("hasRole('CUSTOMER')")
 	@GetMapping("/me")
 	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findMyReservations(
-		@RequestParam(required = false) LocalDate fromDate,
-		@RequestParam(required = false) LocalDate toDate,
-		@RequestParam(required = false) ReservationStatus status,
+		@ModelAttribute ReservationSearchDto searchDto,
 		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
 		@LoginUser CurrentUser user
 	) {
 
+		searchDto.setPageable(pageable);
 		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findMyReservations(
 			user.email(),
-			fromDate,
-			toDate,
-			status,
-			pageable
+			searchDto
 		);
 
 		return ApiResponse.success("예약 조회 성공", responseDto);
@@ -70,18 +64,15 @@ public class ReservationController {
 	@PreAuthorize("hasRole('OWNER')")
 	@GetMapping("/owner")
 	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findOwnerReservations(
-		@RequestParam(required = false) LocalDate fromDate,
-		@RequestParam(required = false) LocalDate toDate,
-		@RequestParam(required = false) ReservationStatus status,
+		@ModelAttribute ReservationSearchDto searchDto,
 		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
 		@LoginUser CurrentUser user
 	) {
+
+		searchDto.setPageable(pageable);
 		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findOwnerReservations(
 			user.email(),
-			fromDate,
-			toDate,
-			status,
-			pageable
+			searchDto
 		);
 
 		return ApiResponse.success("예약 조회 성공", responseDto);
