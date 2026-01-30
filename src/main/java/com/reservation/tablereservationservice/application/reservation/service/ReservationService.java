@@ -1,8 +1,11 @@
 package com.reservation.tablereservationservice.application.reservation.service;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,13 +14,17 @@ import com.reservation.tablereservationservice.domain.reservation.DailySlotCapac
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +38,7 @@ public class ReservationService {
 	private final RestaurantSlotRepository restaurantSlotRepository;
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationRepository reservationRepository;
+	private final RestaurantRepository restaurantRepository;
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
@@ -67,6 +75,50 @@ public class ReservationService {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
 		}
 
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponseDto<ReservationListResponseDto> findMyReservations(
+		String email,
+		ReservationSearchDto searchDto
+	) {
+		User user = userRepository.fetchByEmail(email);
+
+		Page<ReservationListResponseDto> page =
+			reservationRepository.findMyReservations(
+				user.getUserId(),
+				searchDto.getStatus(),
+				searchDto.getStartDate().atStartOfDay(),
+				searchDto.getEndDate().atTime(LocalTime.MAX),
+				searchDto.getPageable()
+			);
+
+		return PageResponseDto.from(page);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponseDto<ReservationListResponseDto> findOwnerReservations(
+		String email,
+		ReservationSearchDto searchDto
+	) {
+		User owner = userRepository.fetchByEmail(email);
+
+		List<Long> restaurantIds = restaurantRepository.findRestaurantIdsByOwnerId(owner.getUserId());
+
+		if (restaurantIds.isEmpty()) {
+			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
+		}
+
+		Page<ReservationListResponseDto> page =
+			reservationRepository.findOwnerReservations(
+				restaurantIds,
+				searchDto.getStatus(),
+				searchDto.getStartDate().atStartOfDay(),
+				searchDto.getEndDate().atTime(LocalTime.MAX),
+				searchDto.getPageable()
+			);
+
+		return PageResponseDto.from(page);
 	}
 
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {

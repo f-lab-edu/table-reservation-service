@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.infrastructure.restaurant.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -21,6 +22,11 @@ public class JpaRestaurantRepository implements RestaurantRepository {
 	public Optional<Restaurant> findById(Long restaurantId) {
 		return restaurantEntityRepository.findById(restaurantId)
 			.map(RestaurantMapper.INSTANCE::toDomain);
+	}
+
+	@Override
+	public List<Long> findRestaurantIdsByOwnerId(Long ownerId) {
+		return restaurantEntityRepository.findRestaurantIdsByOwnerId(ownerId);
 	}
 
 	@Override
