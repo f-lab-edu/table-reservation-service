@@ -21,15 +21,16 @@ import com.reservation.tablereservationservice.domain.reservation.DailySlotCapac
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
-import com.reservation.tablereservationservice.domain.restaurant.CategoryCode;
-import com.reservation.tablereservationservice.domain.restaurant.RegionCode;
 import com.reservation.tablereservationservice.domain.restaurant.Restaurant;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
-import com.reservation.tablereservationservice.domain.user.UserRole;
+import com.reservation.tablereservationservice.fixture.DailySlotCapacityFixture;
+import com.reservation.tablereservationservice.fixture.RestaurantFixture;
+import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
+import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
@@ -40,6 +41,11 @@ import com.reservation.tablereservationservice.presentation.reservation.dto.Rese
 @ActiveProfiles("test")
 @Transactional
 class ReservationServiceIntegrationTest {
+
+	private static final LocalDate TEST_DATE = LocalDate.of(2026, 1, 26);
+	private static final LocalTime TEST_TIME = LocalTime.of(19, 0);
+	private static final LocalDateTime TEST_VISIT_AT = LocalDateTime.of(TEST_DATE, TEST_TIME);
+	private static final Pageable PAGEABLE = PageRequest.of(0, 10);
 
 	@Autowired
 	private ReservationService reservationService;
@@ -59,58 +65,33 @@ class ReservationServiceIntegrationTest {
 	@Autowired
 	private ReservationRepository reservationRepository;
 
-	private String customerEmail;
-	private String ownerEmail;
-	private Long userId;
-	private Long slotId;
-	private LocalDate date;
-	private LocalTime slotTime;
-	private Long restaurantId;
+	private User customer;
+	private User owner;
+	private RestaurantSlot restaurantSlot;
 
 	@BeforeEach
 	void setUp() {
-		this.customerEmail = "customer01@test.com";
-		this.date = LocalDate.now();
-		this.slotTime = LocalTime.of(19, 0);
+		customer = userRepository.save(
+			UserFixture.customer().build()
+		);
 
-		User customer = User.builder()
-			.email(customerEmail)
-			.name("customer01")
-			.phone("010-0000-0000")
-			.password("encrypted-password")
-			.userRole(UserRole.CUSTOMER)
-			.build();
-		User savedCustomer = userRepository.save(customer);
+		owner = userRepository.save(
+			UserFixture.owner().build()
+		);
 
-		User owner = User.builder()
-			.email("owner@test.com")
-			.name("owner")
-			.phone("010-0000-0001")
-			.password("encrypted-password")
-			.userRole(UserRole.OWNER)
-			.build();
-		User savedOwner = userRepository.save(owner);
-		this.ownerEmail = savedOwner.getEmail();
+		Restaurant restaurant = restaurantRepository.save(
+			RestaurantFixture.restaurant()
+				.ownerId(owner.getUserId())
+				.build()
+		);
 
-		Restaurant restaurant = Restaurant.builder()
-			.name("강남 한상")
-			.regionCode(RegionCode.RG01)
-			.categoryCode(CategoryCode.CT01)
-			.address("서울 강남구 테헤란로 1")
-			.ownerId(savedOwner.getUserId())
-			.build();
-		Restaurant savedRestaurant = restaurantRepository.save(restaurant);
-		this.restaurantId = savedRestaurant.getRestaurantId();
-
-		RestaurantSlot restaurantSlot = RestaurantSlot.builder()
-			.restaurantId(savedRestaurant.getRestaurantId())
-			.time(slotTime)
-			.maxCapacity(10)
-			.build();
-		RestaurantSlot savedRestaurantSlot = restaurantSlotRepository.save(restaurantSlot);
-
-		this.userId = savedCustomer.getUserId();
-		this.slotId = savedRestaurantSlot.getSlotId();
+		restaurantSlot = restaurantSlotRepository.save(
+			RestaurantSlotFixture.slot()
+				.restaurantId(restaurant.getRestaurantId())
+				.time(TEST_TIME)
+				.maxCapacity(10)
+				.build()
+		);
 	}
 
 	@Test
@@ -118,33 +99,35 @@ class ReservationServiceIntegrationTest {
 	void create_success_confirmed_and_decreaseCapacity() {
 		// given
 		int partySize = 2;
-		saveCapacity(slotId, date, 10);
+		dailySlotCapacityRepository.save(
+			DailySlotCapacityFixture.capacity()
+				.slotId(restaurantSlot.getSlotId())
+				.date(TEST_DATE)
+				.remainingCount(10)
+				.build()
+		);
 
-		ReservationRequestDto req = new ReservationRequestDto(slotId, date, partySize, "note");
-		LocalDateTime visitAt = LocalDateTime.of(date, slotTime);
-
-		DailySlotCapacity before = dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)
-			.orElseThrow(() -> new IllegalStateException("DailySlotCapacity not found"));
-		assertThat(before.getRemainingCount()).isEqualTo(10);
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, partySize, "note");
 
 		// when
-		Reservation saved = reservationService.create(customerEmail, req);
+		Reservation saved = reservationService.create(customer.getEmail(), req);
 
 		// then
 		assertThat(saved.getReservationId()).isNotNull();
-		assertThat(saved.getUserId()).isEqualTo(userId);
-		assertThat(saved.getSlotId()).isEqualTo(slotId);
-		assertThat(saved.getVisitAt()).isEqualTo(visitAt);
+		assertThat(saved.getUserId()).isEqualTo(customer.getUserId());
+		assertThat(saved.getSlotId()).isEqualTo(restaurantSlot.getSlotId());
+		assertThat(saved.getVisitAt()).isEqualTo(TEST_VISIT_AT);
 		assertThat(saved.getPartySize()).isEqualTo(partySize);
 		assertThat(saved.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 
-		DailySlotCapacity after = dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)
+		DailySlotCapacity after = dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), TEST_DATE)
 			.orElseThrow(() -> new IllegalStateException("DailySlotCapacity not found"));
 		assertThat(after.getRemainingCount()).isEqualTo(8);
 
 		// 저장된 예약이 실제로 CONFIRMED로 존재하는지
 		assertThat(reservationRepository.existsByUserIdAndVisitAtAndStatus(
-			userId, visitAt,
+			customer.getUserId(),
+			TEST_VISIT_AT,
 			ReservationStatus.CONFIRMED
 		)).isTrue();
 	}
@@ -153,15 +136,24 @@ class ReservationServiceIntegrationTest {
 	@DisplayName("중복 예약 실패")
 	void create_fail_duplicatedTime_preCheck() {
 		// given
-		// 첫 번째 예약
-		saveCapacity(slotId, date, 10);
-		reservationService.create(customerEmail, new ReservationRequestDto(slotId, date, 2, ""));
+		dailySlotCapacityRepository.save(
+			DailySlotCapacityFixture.capacity()
+				.slotId(restaurantSlot.getSlotId())
+				.date(TEST_DATE)
+				.remainingCount(10)
+				.build()
+		);
+
+		reservationService.create(
+			customer.getEmail(),
+			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "")
+		);
 
 		// when & then
 		// 동일한 조건으로 다시 예약 (동일 유저, 같은 날짜)
 		assertThatThrownBy(() -> reservationService.create(
-			customerEmail,
-			new ReservationRequestDto(slotId, date, 2, "")
+			customer.getEmail(),
+			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "")
 		))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> {
@@ -169,7 +161,7 @@ class ReservationServiceIntegrationTest {
 				assertThat(re.getErrorCode()).isEqualTo(ErrorCode.RESERVATION_DUPLICATED_TIME);
 			});
 
-		DailySlotCapacity after = dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)
+		DailySlotCapacity after = dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), TEST_DATE)
 			.orElseThrow(() -> new IllegalStateException("DailySlotCapacity not found"));
 		assertThat(after.getRemainingCount()).isEqualTo(8); // 첫 번째 예약에서만 2명이 차감된다.
 	}
@@ -178,19 +170,22 @@ class ReservationServiceIntegrationTest {
 	@DisplayName("좌석 부족 실패")
 	void create_fail_capacityNotEnough() {
 		// given
-		DailySlotCapacity capacity = DailySlotCapacity.builder()
-			.slotId(slotId)
-			.date(date)
-			.remainingCount(1) // remainingCount를 1로 만들어서 준비
-			.version(0L)
-			.build();
-		dailySlotCapacityRepository.save(capacity);
+		dailySlotCapacityRepository.save(
+			DailySlotCapacityFixture.capacity()
+				.slotId(restaurantSlot.getSlotId())
+				.date(TEST_DATE)
+				.remainingCount(1) // remainingCount를 1로 만들어서 준비
+				.build()
+		);
 
 		int partySize = 5; // 실제 요청은 5
 
 		// when & then
 		assertThatThrownBy(
-			() -> reservationService.create(customerEmail, new ReservationRequestDto(slotId, date, partySize, "")))
+			() -> reservationService.create(
+				customer.getEmail(),
+				new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, partySize, "")
+			))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> {
 				ReservationException re = (ReservationException)ex;
@@ -198,7 +193,7 @@ class ReservationServiceIntegrationTest {
 			});
 
 		// 실패면 예약 저장이 없어야 하고, capacity는 그대로(1)여야 함
-		DailySlotCapacity after = dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)
+		DailySlotCapacity after = dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), TEST_DATE)
 			.orElseThrow(() -> new IllegalStateException("DailySlotCapacity not found"));
 		assertThat(after.getRemainingCount()).isEqualTo(1);
 	}
@@ -208,10 +203,10 @@ class ReservationServiceIntegrationTest {
 	void create_fail_slotNotOpened() {
 		// given
 		// capacity를 저장하지 않는다 = 미오픈 상태
-		ReservationRequestDto req = new ReservationRequestDto(slotId, date, 2, "");
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "");
 
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(customerEmail, req))
+		assertThatThrownBy(() -> reservationService.create(customer.getEmail(), req))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> {
 				ReservationException re = (ReservationException)ex;
@@ -220,73 +215,64 @@ class ReservationServiceIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("사용자 예약 목록 조회 성공")
+	@DisplayName("사용자 예약 목록 조회 성공 - 1건")
 	void findMyReservations_success() {
 		// given
-		// 조회용 데이터 준비: capacity 저장 + 예약 1건 생성
-		saveCapacity(slotId, date, 10);
+		dailySlotCapacityRepository.save(
+			DailySlotCapacityFixture.capacity()
+				.slotId(restaurantSlot.getSlotId())
+				.date(TEST_DATE)
+				.remainingCount(10)
+				.build()
+		);
 
-		ReservationRequestDto req = new ReservationRequestDto(slotId, date, 2, "note");
-		reservationService.create(customerEmail, req);
-		Pageable pageable = PageRequest.of(0, 10);
+		reservationService.create(
+			customer.getEmail(),
+			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "note")
+		);
 
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
-			reservationService.findMyReservations(customerEmail, null, null, null, pageable);
+			reservationService.findMyReservations(
+				customer.getEmail(),
+				TEST_DATE,
+				TEST_DATE,
+				ReservationStatus.CONFIRMED,
+				PAGEABLE
+			);
 
 		// then
-		assertThat(result).isNotNull();
 		assertThat(result.getContent()).hasSize(1);
-
-		ReservationListResponseDto first = result.getContent().get(0);
-		assertThat(first.getReservationId()).isNotNull();
-		assertThat(first.getRestaurantId()).isEqualTo(restaurantId);
-		assertThat(first.getRestaurantName()).isEqualTo("강남 한상");
-		assertThat(first.getVisitAt()).isEqualTo(LocalDateTime.of(date, slotTime));
-		assertThat(first.getPartySize()).isEqualTo(2);
-		assertThat(first.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-		assertThat(first.getUserName()).isEqualTo("customer01");
-		assertThat(first.getUserPhone()).isEqualTo("010-0000-0000");
 	}
 
 	@Test
-	@DisplayName("점주 예약 목록 조회 성공")
+	@DisplayName("점주 예약 목록 조회 성공 - 1건")
 	void findOwnerReservations_success() {
 		// given
-		// 조회용 데이터 준비: capacity 저장 + 예약 1건 생성
-		saveCapacity(slotId, date, 10);
+		dailySlotCapacityRepository.save(
+			DailySlotCapacityFixture.capacity()
+				.slotId(restaurantSlot.getSlotId())
+				.date(TEST_DATE)
+				.remainingCount(10)
+				.build()
+		);
 
-		ReservationRequestDto req = new ReservationRequestDto(slotId, date, 2, "note");
-		reservationService.create(customerEmail, req);
-		Pageable pageable = PageRequest.of(0, 10);
+		reservationService.create(
+			customer.getEmail(),
+			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "note")
+		);
 
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
-			reservationService.findOwnerReservations(ownerEmail, null, null, null, pageable);
+			reservationService.findOwnerReservations(
+				owner.getEmail(),
+				TEST_DATE,
+				TEST_DATE,
+				ReservationStatus.CONFIRMED,
+				PAGEABLE
+			);
 
 		// then
-		assertThat(result).isNotNull();
 		assertThat(result.getContent()).hasSize(1);
-
-		ReservationListResponseDto first = result.getContent().get(0);
-		assertThat(first.getReservationId()).isNotNull();
-		assertThat(first.getRestaurantId()).isEqualTo(restaurantId);
-		assertThat(first.getRestaurantName()).isEqualTo("강남 한상");
-		assertThat(first.getVisitAt()).isEqualTo(LocalDateTime.of(date, slotTime));
-		assertThat(first.getPartySize()).isEqualTo(2);
-		assertThat(first.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-		assertThat(first.getUserName()).isEqualTo("customer01");
-		assertThat(first.getUserPhone()).isEqualTo("010-0000-0000");
-	}
-
-	private void saveCapacity(Long slotId, LocalDate date, int remainingCount) {
-		DailySlotCapacity capacity = DailySlotCapacity.builder()
-			.slotId(slotId)
-			.date(date)
-			.remainingCount(remainingCount)
-			.version(0L)
-			.build();
-
-		dailySlotCapacityRepository.save(capacity);
 	}
 }

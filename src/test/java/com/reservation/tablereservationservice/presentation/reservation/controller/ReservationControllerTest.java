@@ -5,9 +5,11 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -62,9 +64,6 @@ class ReservationControllerTest {
 	@MockitoBean
 	private ReservationService reservationService;
 
-	@MockitoBean
-	private Authentication authentication;
-
 	@Test
 	@DisplayName("예약 요청 성공 - CUSTOMER 권한이면 200 및 응답 바디 반환")
 	void create_success_whenCustomerRole() throws Exception {
@@ -103,6 +102,7 @@ class ReservationControllerTest {
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
+			.andExpect(status().isOk())
 			.andReturn();
 
 		// then
@@ -120,7 +120,7 @@ class ReservationControllerTest {
 		assertThat(data.getReservationId()).isEqualTo(999L);
 		assertThat(data.getPartySize()).isEqualTo(2);
 
-		verify(reservationService, times(1)).create(eq(email), any(ReservationRequestDto.class));
+		verify(reservationService).create(eq(email), any(ReservationRequestDto.class));
 	}
 
 	@Test
@@ -147,6 +147,7 @@ class ReservationControllerTest {
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
+			.andExpect(status().isBadRequest())
 			.andReturn();
 
 		// then
@@ -166,7 +167,7 @@ class ReservationControllerTest {
 		assertThat(errors.get("date")).isEqualTo("예약 날짜는 필수입니다.");
 		assertThat(errors.get("partySize")).isEqualTo("예약 인원은 1명 이상이어야 합니다.");
 
-		verify(reservationService, times(0)).create(anyString(), any());
+		verify(reservationService, never()).create(anyString(), any());
 	}
 
 	@Test
@@ -188,15 +189,14 @@ class ReservationControllerTest {
 		);
 
 		// when
-		MvcResult mvcResult = mockMvc.perform(post("/api/reservations")
+		mockMvc.perform(post("/api/reservations")
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
-			.andReturn();
+			.andExpect(status().isForbidden());
 
 		// then
-		assertThat(mvcResult.getResponse().getStatus()).isEqualTo(403);
-		verify(reservationService, times(0)).create(anyString(), any());
+		verify(reservationService, never()).create(anyString(), any());
 	}
 
 	@Test
@@ -219,11 +219,13 @@ class ReservationControllerTest {
 			null,
 			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
 		);
+
 		// when
 		MvcResult mvcResult = mockMvc.perform(post("/api/reservations")
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
+			.andExpect(status().isConflict())
 			.andReturn();
 
 		// then
@@ -237,7 +239,7 @@ class ReservationControllerTest {
 		assertThat(response.getMessage()).isEqualTo(ErrorCode.RESERVATION_DUPLICATED_TIME.getMessage());
 		assertThat(response.getData()).isNull();
 
-		verify(reservationService, times(1)).create(eq(email), any(ReservationRequestDto.class));
+		verify(reservationService).create(eq(email), any(ReservationRequestDto.class));
 	}
 
 	@Test
@@ -279,6 +281,7 @@ class ReservationControllerTest {
 				.param("fromDate", "2026-01-27")
 				.param("toDate", "2026-02-27")
 				.param("status", "CONFIRMED"))
+			.andExpect(status().isOk())
 			.andReturn();
 
 		// then
@@ -292,7 +295,7 @@ class ReservationControllerTest {
 		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
 		assertThat(response.getData()).isNotNull();
 
-		verify(reservationService, times(1)).findMyReservations(
+		verify(reservationService).findMyReservations(
 			eq(email),
 			any(),
 			any(),
@@ -339,6 +342,7 @@ class ReservationControllerTest {
 				.with(authentication(auth))
 				.param("fromDate", "2026-01-27")
 				.param("toDate", "2026-02-27"))
+			.andExpect(status().isOk())
 			.andReturn();
 
 		// then
@@ -352,7 +356,7 @@ class ReservationControllerTest {
 		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
 		assertThat(response.getData()).isNotNull();
 
-		verify(reservationService, times(1)).findOwnerReservations(
+		verify(reservationService).findOwnerReservations(
 			eq(email),
 			any(),
 			any(),

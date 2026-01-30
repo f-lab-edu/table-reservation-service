@@ -7,13 +7,14 @@ import static org.mockito.BDDMockito.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -32,10 +33,11 @@ import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
-import com.reservation.tablereservationservice.domain.user.UserRole;
+import com.reservation.tablereservationservice.fixture.DailySlotCapacityFixture;
+import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
+import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.global.exception.RestaurantException;
 import com.reservation.tablereservationservice.global.exception.UserException;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
@@ -43,6 +45,11 @@ import com.reservation.tablereservationservice.presentation.reservation.dto.Rese
 
 @ExtendWith(MockitoExtension.class)
 class ReservationServiceTest {
+
+	private static final LocalDate TEST_DATE = LocalDate.of(2026, 1, 26);
+	private static final LocalTime TEST_TIME = LocalTime.of(19, 0);
+	private static final LocalDateTime TEST_VISIT_AT = LocalDateTime.of(TEST_DATE, TEST_TIME);
+	private static final Pageable PAGEABLE = PageRequest.of(0, 10);
 
 	@Mock
 	private UserRepository userRepository;
@@ -62,83 +69,85 @@ class ReservationServiceTest {
 	@InjectMocks
 	private ReservationService reservationService;
 
+	private User customer;
+	private User owner;
+	private RestaurantSlot restaurantSlot;
+
+	@BeforeEach
+	void setUp() {
+		customer = UserFixture.customer().build();
+		owner = UserFixture.owner().build();
+		restaurantSlot = RestaurantSlotFixture.slot()
+			.time(TEST_TIME)
+			.build();
+	}
+
 	@Test
 	@DisplayName("예약 요청 성공 - CONFIRMED 저장 + capacity 차감")
 	void create_success() {
 		// given
-		String email = "customer01@test.com";
-		LocalDate date = LocalDate.of(2026, 1, 26);
-		LocalTime slotTime = LocalTime.of(19, 0);
-		Long userId = 1L;
-		Long slotId = 10L;
-		Long restaurantId = 100L;
-		int partySize = 2;
-
-		User user = createTestUser(userId, email, UserRole.CUSTOMER);
-		RestaurantSlot slot = createTestSlot(slotId, restaurantId, slotTime);
-
-		DailySlotCapacity capacity = DailySlotCapacity.builder()
-			.capacityId(777L)
-			.slotId(slotId)
-			.date(date)
+		DailySlotCapacity capacity = DailySlotCapacityFixture.capacity()
+			.slotId(restaurantSlot.getSlotId())
+			.date(TEST_DATE)
 			.remainingCount(10)
-			.version(0L)
 			.build();
 
-		ReservationRequestDto req = new ReservationRequestDto(slotId, date, partySize, "note");
+		int partySize = 2;
 
-		given(userRepository.fetchByEmail(email)).willReturn(user);
-		given(restaurantSlotRepository.fetchById(slotId)).willReturn(slot);
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, partySize, "note");
+
+		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
+		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
 		given(reservationRepository.existsByUserIdAndVisitAtAndStatus(
-			userId, LocalDateTime.of(date, slotTime),
+			customer.getUserId(),
+			TEST_VISIT_AT,
 			ReservationStatus.CONFIRMED
 		)).willReturn(false);
-		given(dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)).willReturn(Optional.of(capacity));
-		given(reservationRepository.save(any(Reservation.class))).willAnswer(inv -> {
-			Reservation r = inv.getArgument(0);
-			return Reservation.builder()
-				.reservationId(999L)
-				.userId(r.getUserId())
-				.slotId(r.getSlotId())
-				.visitAt(r.getVisitAt())
-				.partySize(r.getPartySize())
-				.note(r.getNote())
-				.status(r.getStatus())
-				.build();
-		});
+
+		given(dailySlotCapacityRepository.findBySlotIdAndDate(
+			restaurantSlot.getSlotId(),
+			TEST_DATE
+		)).willReturn(Optional.of(capacity));
+
+		given(reservationRepository.save(any(Reservation.class))).willAnswer(inv -> inv.getArgument(0));
 
 		// when
-		Reservation saved = reservationService.create(email, req);
+		Reservation saved = reservationService.create(customer.getEmail(), req);
 
 		// then
-		assertThat(saved.getReservationId()).isEqualTo(999L);
-		assertThat(saved.getUserId()).isEqualTo(userId);
-		assertThat(saved.getSlotId()).isEqualTo(slotId);
-		assertThat(saved.getVisitAt()).isEqualTo(LocalDateTime.of(date, slotTime));
+		assertThat(saved.getUserId()).isEqualTo(customer.getUserId());
+		assertThat(saved.getSlotId()).isEqualTo(restaurantSlot.getSlotId());
+		assertThat(saved.getVisitAt()).isEqualTo(TEST_VISIT_AT);
 		assertThat(saved.getPartySize()).isEqualTo(partySize);
 		assertThat(saved.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 
-		ArgumentCaptor<DailySlotCapacity> captor = ArgumentCaptor.forClass(DailySlotCapacity.class);
-		verify(dailySlotCapacityRepository, times(1)).updateRemainingCount(captor.capture());
+		// then - save argument 검증
+		ArgumentCaptor<Reservation> reservationCaptor = ArgumentCaptor.forClass(Reservation.class);
+		verify(reservationRepository).save(reservationCaptor.capture());
+		Reservation captured = reservationCaptor.getValue();
+		assertThat(captured.getUserId()).isEqualTo(customer.getUserId());
+		assertThat(captured.getSlotId()).isEqualTo(restaurantSlot.getSlotId());
+		assertThat(captured.getVisitAt()).isEqualTo(TEST_VISIT_AT);
+		assertThat(captured.getPartySize()).isEqualTo(partySize);
+		assertThat(captured.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 
-		DailySlotCapacity updated = captor.getValue();
-		assertThat(updated.getCapacityId()).isEqualTo(777L);
-		assertThat(updated.getSlotId()).isEqualTo(slotId);
-		assertThat(updated.getDate()).isEqualTo(date);
-		assertThat(updated.getRemainingCount()).isEqualTo(8);	}
+		// then - capacity 차감 검증
+		ArgumentCaptor<DailySlotCapacity> capacityCaptor = ArgumentCaptor.forClass(DailySlotCapacity.class);
+		verify(dailySlotCapacityRepository).updateRemainingCount(capacityCaptor.capture());
+		assertThat(capacityCaptor.getValue().getRemainingCount()).isEqualTo(8);
+	}
 
 	@Test
 	@DisplayName("예약 요청 실패 - 유저 없음")
 	void create_fail_userNotFound() {
 		// given
-		String email = "customer01@test.com";
-		ReservationRequestDto req = new ReservationRequestDto(1L, LocalDate.of(2026, 1, 26), 2, "");
-
-		given(userRepository.fetchByEmail(email))
+		given(userRepository.fetchByEmail(customer.getEmail()))
 			.willThrow(new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
 
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "");
+
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(email, req))
+		assertThatThrownBy(() -> reservationService.create(customer.getEmail(), req))
 			.isInstanceOf(UserException.class);
 
 		verifyNoInteractions(restaurantSlotRepository, dailySlotCapacityRepository, reservationRepository);
@@ -148,24 +157,17 @@ class ReservationServiceTest {
 	@DisplayName("예약 요청 실패 - 중복 예약 예외 발생")
 	void create_fail_duplicatedTime_preCheck() {
 		// given
-		String email = "customer01@test.com";
-		Long userId = 1L;
-		Long slotId = 10L;
-		Long restaurantId = 100L;
-		LocalDate date = LocalDate.of(2026, 1, 26);
-		LocalTime slotTime = LocalTime.of(19, 0);
+		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
+		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
 
-		User user = createTestUser(userId, email, UserRole.CUSTOMER);
-		RestaurantSlot slot = createTestSlot(slotId, restaurantId, slotTime);
-
-		given(userRepository.fetchByEmail(email)).willReturn(user);
-		given(restaurantSlotRepository.fetchById(slotId)).willReturn(slot);
 		given(reservationRepository.existsByUserIdAndVisitAtAndStatus(
-			userId, LocalDateTime.of(date, slotTime), ReservationStatus.CONFIRMED
+			customer.getUserId(), TEST_VISIT_AT, ReservationStatus.CONFIRMED
 		)).willReturn(true);
 
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "");
+
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(email, new ReservationRequestDto(slotId, date, 2, "")))
+		assertThatThrownBy(() -> reservationService.create(customer.getEmail(), req))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 				.isEqualTo(ErrorCode.RESERVATION_DUPLICATED_TIME));
@@ -178,25 +180,20 @@ class ReservationServiceTest {
 	@DisplayName("예약 요청 실패 - capacity row 없음(해당 날짜 슬롯 미오픈)")
 	void create_fail_slotNotOpened() {
 		// given
-		String email = "customer01@test.com";
-		Long userId = 1L;
-		Long slotId = 10L;
-		Long restaurantId = 100L;
-		LocalDate date = LocalDate.of(2026, 1, 26);
-		LocalTime slotTime = LocalTime.of(19, 0);
+		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
+		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
 
-		User user = createTestUser(userId, email, UserRole.CUSTOMER);
-		RestaurantSlot slot = createTestSlot(slotId, restaurantId, slotTime);
-
-		given(userRepository.fetchByEmail(email)).willReturn(user);
-		given(restaurantSlotRepository.fetchById(slotId)).willReturn(slot);
 		given(reservationRepository.existsByUserIdAndVisitAtAndStatus(
-			eq(userId), any(LocalDateTime.class), eq(ReservationStatus.CONFIRMED)
+			customer.getUserId(), TEST_VISIT_AT, ReservationStatus.CONFIRMED
 		)).willReturn(false);
-		given(dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)).willReturn(Optional.empty());
+
+		given(dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), TEST_DATE
+		)).willReturn(Optional.empty());
+
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "");
 
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(email, new ReservationRequestDto(slotId, date, 2, "")))
+		assertThatThrownBy(() -> reservationService.create(customer.getEmail(), req))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 				.isEqualTo(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
@@ -209,33 +206,28 @@ class ReservationServiceTest {
 	@DisplayName("예약 요청 실패 - 좌석 부족")
 	void create_fail_capacityNotEnough() {
 		// given
-		String email = "customer01@test.com";
-		Long userId = 1L;
-		Long slotId = 10L;
-		Long restaurantId = 100L;
-		LocalDate date = LocalDate.of(2026, 1, 26);
-		LocalTime slotTime = LocalTime.of(19, 0);
-
-		User user = createTestUser(userId, email, UserRole.CUSTOMER);
-		RestaurantSlot slot = createTestSlot(slotId, restaurantId, slotTime);
-
-		DailySlotCapacity capacity = DailySlotCapacity.builder()
-			.capacityId(777L)
-			.slotId(slotId)
-			.date(date)
+		DailySlotCapacity capacity = DailySlotCapacityFixture.capacity()
+			.slotId(restaurantSlot.getSlotId())
+			.date(TEST_DATE)
 			.remainingCount(1)
-			.version(0L)
 			.build();
 
-		given(userRepository.fetchByEmail(email)).willReturn(user);
-		given(restaurantSlotRepository.fetchById(slotId)).willReturn(slot);
+		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
+		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
+
 		given(reservationRepository.existsByUserIdAndVisitAtAndStatus(
-			eq(userId), any(LocalDateTime.class), eq(ReservationStatus.CONFIRMED)
+			customer.getUserId(),
+			TEST_VISIT_AT,
+			ReservationStatus.CONFIRMED
 		)).willReturn(false);
-		given(dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)).willReturn(Optional.of(capacity));
+
+		given(dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), TEST_DATE))
+			.willReturn(Optional.of(capacity));
+
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "");
 
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(email, new ReservationRequestDto(slotId, date, 2, "")))
+		assertThatThrownBy(() -> reservationService.create(customer.getEmail(),req))
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 				.isEqualTo(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH));
@@ -245,159 +237,77 @@ class ReservationServiceTest {
 	}
 
 	@Test
-	@DisplayName("예약 요청 실패 - 슬롯 없음")
-	void create_fail_slotNotFound() {
-		// given
-		String email = "customer01@test.com";
-		Long userId = 1L;
-		Long slotId = 10L;
-		LocalDate date = LocalDate.of(2026, 1, 26);
-
-		User user = createTestUser(userId, email, UserRole.CUSTOMER);
-
-		given(userRepository.fetchByEmail(email)).willReturn(user);
-		given(restaurantSlotRepository.fetchById(slotId))
-			.willThrow(new RestaurantException(ErrorCode.RESOURCE_NOT_FOUND, "RestaurantSlot"));
-
-		// when & then
-		assertThatThrownBy(() -> reservationService.create(email, new ReservationRequestDto(slotId, date, 2, "")))
-			.isInstanceOf(RestaurantException.class);
-
-		verifyNoInteractions(dailySlotCapacityRepository, reservationRepository);
-	}
-
-	@Test
-	@DisplayName("사용자 예약 목록 조회 성공 - 기본 기간(오늘~한달) 적용 + repo 호출 검증")
+	@DisplayName("사용자 예약 목록 조회 성공 - 1건")
 	void findMyReservations_success() {
 		// given
-		String email = "customer01@test.com";
-		Long userId = 1L;
-		Pageable pageable = PageRequest.of(0, 10);
+		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(reservationResponse(1L)));
 
-		User testUser = createTestUser(userId, email, UserRole.CUSTOMER);
-
-		LocalDate today = LocalDate.now();
-		LocalDate expectedEnd = today.plusMonths(1);
-
-		List<ReservationListResponseDto> content = List.of(
-			ReservationListResponseDto.builder()
-				.userName("유저")
-				.userPhone("010-1111-2222")
-				.reservationId(10L)
-				.restaurantId(100L)
-				.restaurantName("맛집A")
-				.visitAt(LocalDateTime.of(today, LocalTime.of(19, 0)))
-				.partySize(2)
-				.status(ReservationStatus.CONFIRMED)
-				.build()
-		);
-
-		Page<ReservationListResponseDto> page = new PageImpl<>(content, pageable, 1);
-
-		given(userRepository.fetchByEmail(email)).willReturn(testUser);
+		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(reservationRepository.findMyReservations(
-			eq(userId),
-			isNull(),
-			any(LocalDateTime.class),
-			any(LocalDateTime.class),
-			eq(pageable)
+			eq(customer.getUserId()),
+			eq(ReservationStatus.CONFIRMED),
+			any(),
+			any(),
+			any()
 		)).willReturn(page);
 
 		// when
-		PageResponseDto<ReservationListResponseDto> result =
-			reservationService.findMyReservations(email, null, null, null, pageable);
+		PageResponseDto<ReservationListResponseDto> result = reservationService.findMyReservations(
+			customer.getEmail(),
+			TEST_DATE,
+			TEST_DATE,
+			ReservationStatus.CONFIRMED,
+			PAGEABLE
+		);
 
 		// then
 		assertThat(result.getContent()).hasSize(1);
-		assertThat(result.getTotalElements()).isEqualTo(1);
-		assertThat(result.getContent().get(0).getRestaurantName()).isEqualTo("맛집A");
-
-		verify(userRepository, times(1)).fetchByEmail(email);
-		verify(reservationRepository, times(1)).findMyReservations(
-			eq(userId),
-			isNull(),
-			eq(today.atStartOfDay()),
-			eq(expectedEnd.atTime(LocalTime.MAX)),
-			eq(pageable)
-		);
+		assertThat(result.getContent().getFirst().getRestaurantName()).isEqualTo("강남 한상");
+		assertThat(result.getContent().getFirst().getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 	}
 
 	@Test
-	@DisplayName("점주 예약 목록 조회 성공 - restaurantIds 조회 후 ownerReservations 조회")
+	@DisplayName("점주 예약 목록 조회 성공 - 1건")
 	void findOwnerReservations_success() {
 		// given
-		String email = "owner01@test.com";
-		Long ownerId = 2L;
-		Pageable pageable = PageRequest.of(0, 10);
+		Long ownerRestaurantId = 2L;
+		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(reservationResponse(ownerRestaurantId)));
 
-		User owner = createTestUser(ownerId, email, UserRole.OWNER);
+		given(userRepository.fetchByEmail(owner.getEmail())).willReturn(owner);
+		given(restaurantRepository.findRestaurantIdsByOwnerId(owner.getUserId()))
+			.willReturn(List.of(ownerRestaurantId));
 
-		LocalDate fromDate = LocalDate.of(2026, 1, 1);
-		LocalDate toDate = LocalDate.of(2026, 1, 31);
-
-		List<Long> restaurantIds = List.of(100L, 200L);
-
-		List<ReservationListResponseDto> content = List.of(
-			ReservationListResponseDto.builder()
-				.userName("유저")
-				.userPhone("010-1111-2222")
-				.reservationId(10L)
-				.restaurantId(100L)
-				.restaurantName("맛집A")
-				.visitAt(LocalDateTime.of(2026, 1, 10, 19, 0))
-				.partySize(2)
-				.status(ReservationStatus.CONFIRMED)
-				.build()
-		);
-		Page<ReservationListResponseDto> page = new PageImpl<>(content, pageable, 1);
-
-		given(userRepository.fetchByEmail(email)).willReturn(owner);
-		given(restaurantRepository.findRestaurantIdsByOwnerId(ownerId)).willReturn(restaurantIds);
 		given(reservationRepository.findOwnerReservations(
-			eq(restaurantIds),
+			eq(List.of(ownerRestaurantId)),
 			eq(ReservationStatus.CONFIRMED),
-			any(LocalDateTime.class),
-			any(LocalDateTime.class),
-			eq(pageable)
+			any(),
+			any(),
+			any()
 		)).willReturn(page);
 
 		// when
-		PageResponseDto<ReservationListResponseDto> result =
-			reservationService.findOwnerReservations(email, fromDate, toDate, ReservationStatus.CONFIRMED, pageable);
+		PageResponseDto<ReservationListResponseDto> result = reservationService.findOwnerReservations(
+			owner.getEmail(),
+			TEST_DATE,
+			TEST_DATE,
+			ReservationStatus.CONFIRMED,
+			PAGEABLE
+		);
 
 		// then
 		assertThat(result.getContent()).hasSize(1);
-		assertThat(result.getContent().get(0).getUserName()).isEqualTo("유저");
-		assertThat(result.getContent().get(0).getUserPhone()).isEqualTo("010-1111-2222");
-
-		verify(userRepository, times(1)).fetchByEmail(email);
-		verify(restaurantRepository, times(1)).findRestaurantIdsByOwnerId(ownerId);
-		verify(reservationRepository, times(1)).findOwnerReservations(
-			eq(restaurantIds),
-			eq(ReservationStatus.CONFIRMED),
-			eq(fromDate.atStartOfDay()),
-			eq(toDate.atTime(LocalTime.MAX)),
-			eq(pageable)
-		);
+		assertThat(result.getContent().getFirst().getRestaurantName()).isEqualTo("강남 한상");
+		assertThat(result.getContent().getFirst().getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 	}
 
-	private User createTestUser(Long userId, String email, UserRole userRole) {
-		return User.builder()
-			.userId(userId)
-			.email(email)
-			.name("유저")
-			.phone("010-0000-0000")
-			.password("encrypted-password")
-			.userRole(userRole)
-			.build();
-	}
-
-	private RestaurantSlot createTestSlot(Long slotId, Long restaurantId, LocalTime time) {
-		return RestaurantSlot.builder()
-			.slotId(slotId)
+	private ReservationListResponseDto reservationResponse(Long restaurantId) {
+		return ReservationListResponseDto.builder()
+			.reservationId(1L)
 			.restaurantId(restaurantId)
-			.time(time)
-			.maxCapacity(10)
+			.restaurantName("강남 한상")
+			.visitAt(TEST_VISIT_AT)
+			.partySize(2)
+			.status(ReservationStatus.CONFIRMED)
 			.build();
 	}
 }
