@@ -13,5 +13,7 @@ public interface ReservationRepository {
 
 	Reservation fetchById(Long reservationId);
 
+	void updateStatus(Reservation reservation);
+
 	void deleteAll();
 }

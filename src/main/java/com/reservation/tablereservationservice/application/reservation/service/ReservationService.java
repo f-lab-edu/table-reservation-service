@@ -1,6 +1,5 @@
 package com.reservation.tablereservationservice.application.reservation.service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -78,9 +77,15 @@ public class ReservationService {
 
 		validateCancelable(user.getUserId(), reservation);
 		reservation.cancel();
-		restoreCapacity(reservation.getSlotId(), reservation.getVisitAt().toLocalDate(), reservation.getPartySize());
 
-		return reservationRepository.save(reservation);
+		DailySlotCapacity capacity = dailySlotCapacityRepository
+			.findBySlotIdAndDate(reservation.getSlotId(), reservation.getVisitAt().toLocalDate())
+			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
+
+		restoreCapacity(capacity, reservation.getPartySize());
+		reservationRepository.updateStatus(reservation);
+
+		return reservation;
 	}
 
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {
@@ -103,11 +108,11 @@ public class ReservationService {
 	}
 
 	private void validateCancelable(Long userId, Reservation reservation) {
-		if(!reservation.getUserId().equals(userId)) {
+		if (!reservation.getUserId().equals(userId)) {
 			throw new ReservationException(ErrorCode.RESERVATION_FORBIDDEN);
 		}
 
-		if(reservation.getStatus() == ReservationStatus.CANCELED) {
+		if (reservation.getStatus() == ReservationStatus.CANCELED) {
 			throw new ReservationException(ErrorCode.RESERVATION_ALREADY_CANCELED);
 		}
 
@@ -117,13 +122,9 @@ public class ReservationService {
 		}
 	}
 
-	private void restoreCapacity(Long slotId, LocalDate date, int partySize) {
-		DailySlotCapacity capacity = dailySlotCapacityRepository
-			.findBySlotIdAndDate(slotId, date)
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Capacity"));
-
+	private void restoreCapacity(DailySlotCapacity capacity, int partySize) {
 		capacity.increase(partySize);
-		dailySlotCapacityRepository.updateRemainingCount(capacity.getCapacityId(), capacity.getRemainingCount());
+		dailySlotCapacityRepository.updateRemainingCount(capacity);
 	}
 
 }

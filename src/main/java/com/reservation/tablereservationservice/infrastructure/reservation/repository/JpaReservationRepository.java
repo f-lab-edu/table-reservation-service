@@ -48,6 +48,15 @@ public class JpaReservationRepository implements ReservationRepository {
 	}
 
 	@Override
+	public void updateStatus(Reservation reservation) {
+		ReservationEntity entity = reservationEntityRepository.findById(reservation.getReservationId())
+			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
+
+		entity.updateStatus(reservation.getStatus());
+		// save() 호출 없음 -> 변경 감지 UPDATE
+	}
+
+	@Override
 	public void deleteAll() {
 		reservationEntityRepository.deleteAll();
 	}

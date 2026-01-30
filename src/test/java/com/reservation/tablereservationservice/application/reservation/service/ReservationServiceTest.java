@@ -253,6 +253,171 @@ class ReservationServiceTest {
 		verifyNoInteractions(dailySlotCapacityRepository, reservationRepository);
 	}
 
+	@Test
+	@DisplayName("예약 취소 성공 - CANCELED 저장 + capacity 복구")
+	void cancel_success() {
+		// given
+		String email = "customer01@test.com";
+		Long userId = 1L;
+		Long reservationId = 999L;
+		Long slotId = 10L;
+
+		LocalDateTime visitAt = LocalDateTime.now().plusDays(2);
+		LocalDate date = visitAt.toLocalDate();
+
+		int partySize = 2;
+
+		User user = createTestUser(userId, email);
+
+		Reservation reservation = Reservation.builder()
+			.reservationId(reservationId)
+			.userId(userId)
+			.slotId(slotId)
+			.visitAt(visitAt)
+			.partySize(partySize)
+			.note("note")
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		DailySlotCapacity capacity = DailySlotCapacity.builder()
+			.capacityId(777L)
+			.slotId(slotId)
+			.date(date)
+			.remainingCount(8) // 현재 남은 수량
+			.version(0L)
+			.build();
+
+		given(userRepository.fetchByEmail(email)).willReturn(user);
+		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
+		given(dailySlotCapacityRepository.findBySlotIdAndDate(slotId, date)).willReturn(Optional.of(capacity));
+		given(reservationRepository.save(any(Reservation.class))).willAnswer(inv -> inv.getArgument(0));
+
+		// when
+		Reservation canceled = reservationService.cancel(email, reservationId);
+
+		// then
+		assertThat(canceled.getReservationId()).isEqualTo(reservationId);
+		assertThat(canceled.getStatus()).isEqualTo(ReservationStatus.CANCELED);
+
+		ArgumentCaptor<DailySlotCapacity> captor = ArgumentCaptor.forClass(DailySlotCapacity.class);
+		verify(dailySlotCapacityRepository, times(1)).updateRemainingCount(captor.capture());
+
+		DailySlotCapacity updated = captor.getValue();
+		assertThat(updated.getCapacityId()).isEqualTo(777L);
+		assertThat(updated.getSlotId()).isEqualTo(slotId);
+		assertThat(updated.getDate()).isEqualTo(date);
+		assertThat(updated.getRemainingCount()).isEqualTo(10); // 8 + 2 복구
+
+		verify(reservationRepository, times(1)).save(any(Reservation.class));
+	}
+
+	@Test
+	@DisplayName("예약 취소 실패 - 본인 예약 아님(403)")
+	void cancel_fail_forbidden() {
+		// given
+		String email = "customer01@test.com";
+		Long userId = 1L;
+		Long otherUserId = 2L;
+		Long reservationId = 999L;
+		Long slotId = 10L;
+
+		LocalDateTime visitAt = LocalDateTime.now().plusDays(2);
+
+		User user = createTestUser(userId, email);
+
+		Reservation reservation = Reservation.builder()
+			.reservationId(reservationId)
+			.userId(otherUserId) // 다른 유저 예약
+			.slotId(slotId)
+			.visitAt(visitAt)
+			.partySize(2)
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		given(userRepository.fetchByEmail(email)).willReturn(user);
+		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
+
+		// when & then
+		assertThatThrownBy(() -> reservationService.cancel(email, reservationId))
+			.isInstanceOf(ReservationException.class)
+			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+				.isEqualTo(ErrorCode.RESERVATION_FORBIDDEN));
+
+		verifyNoInteractions(dailySlotCapacityRepository);
+		verify(reservationRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("예약 취소 실패 - 이미 취소된 예약(409)")
+	void cancel_fail_alreadyCanceled() {
+		// given
+		String email = "customer01@test.com";
+		Long userId = 1L;
+		Long reservationId = 999L;
+		Long slotId = 10L;
+
+		LocalDateTime visitAt = LocalDateTime.now().plusDays(2);
+
+		User user = createTestUser(userId, email);
+
+		Reservation reservation = Reservation.builder()
+			.reservationId(reservationId)
+			.userId(userId)
+			.slotId(slotId)
+			.visitAt(visitAt)
+			.partySize(2)
+			.status(ReservationStatus.CANCELED) // 이미 취소
+			.build();
+
+		given(userRepository.fetchByEmail(email)).willReturn(user);
+		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
+
+		// when & then
+		assertThatThrownBy(() -> reservationService.cancel(email, reservationId))
+			.isInstanceOf(ReservationException.class)
+			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+				.isEqualTo(ErrorCode.RESERVATION_ALREADY_CANCELED));
+
+		verifyNoInteractions(dailySlotCapacityRepository);
+		verify(reservationRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("예약 취소 실패 - 취소 가능 기한(24시간) 지남")
+	void cancel_fail_deadlinePassed() {
+		// given
+		String email = "customer01@test.com";
+		Long userId = 1L;
+		Long reservationId = 999L;
+		Long slotId = 10L;
+
+		// visitAt이 현재로부터 24시간 이내면 취소 불가
+		LocalDateTime visitAt = LocalDateTime.now().plusHours(23);
+
+		User user = createTestUser(userId, email);
+
+		Reservation reservation = Reservation.builder()
+			.reservationId(reservationId)
+			.userId(userId)
+			.slotId(slotId)
+			.visitAt(visitAt)
+			.partySize(2)
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		given(userRepository.fetchByEmail(email)).willReturn(user);
+		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
+
+		// when & then
+		assertThatThrownBy(() -> reservationService.cancel(email, reservationId))
+			.isInstanceOf(ReservationException.class)
+			.satisfies(ex -> assertThat(((ReservationException) ex).getErrorCode())
+				.isEqualTo(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED));
+
+		verifyNoInteractions(dailySlotCapacityRepository);
+		verify(reservationRepository, never()).save(any());
+	}
+
 	private User createTestUser(Long userId, String email) {
 		return User.builder()
 			.userId(userId)
