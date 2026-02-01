@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
+import com.reservation.tablereservationservice.global.annotation.CustomerOnly;
 import com.reservation.tablereservationservice.global.annotation.LoginUser;
+import com.reservation.tablereservationservice.global.annotation.OwnerOnly;
 import com.reservation.tablereservationservice.global.common.CurrentUser;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
@@ -32,7 +34,7 @@ public class ReservationController {
 
 	private final ReservationService reservationService;
 
-	@PreAuthorize("hasRole('CUSTOMER')")
+	@CustomerOnly
 	@PostMapping
 	public ApiResponse<ReservationResponseDto> create(
 		@Valid @RequestBody ReservationRequestDto requestDto,
@@ -44,7 +46,7 @@ public class ReservationController {
 		return ApiResponse.success("예약 요청 성공", responseDto);
 	}
 
-	@PreAuthorize("hasRole('CUSTOMER')")
+	@CustomerOnly
 	@GetMapping("/me")
 	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findMyReservations(
 		@ModelAttribute ReservationSearchDto searchDto,
@@ -61,7 +63,7 @@ public class ReservationController {
 		return ApiResponse.success("예약 조회 성공", responseDto);
 	}
 
-	@PreAuthorize("hasRole('OWNER')")
+	@OwnerOnly
 	@GetMapping("/owner")
 	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findOwnerReservations(
 		@ModelAttribute ReservationSearchDto searchDto,

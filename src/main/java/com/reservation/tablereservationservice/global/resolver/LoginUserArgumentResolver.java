@@ -27,7 +27,7 @@ public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver 
 		NativeWebRequest webRequest, WebDataBinderFactory binderFactory) throws Exception {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-		if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+		if (authentication instanceof AnonymousAuthenticationToken) {
 			return null;
 		}
 
