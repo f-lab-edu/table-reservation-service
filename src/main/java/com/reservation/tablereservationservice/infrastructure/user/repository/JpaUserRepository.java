@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.infrastructure.user.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -48,6 +49,13 @@ public class JpaUserRepository implements UserRepository {
 	public User fetchByEmail(String email) {
 		return findByEmail(email)
 			.orElseThrow(() -> new UserException(ErrorCode.RESOURCE_NOT_FOUND, "User"));
+	}
+
+	@Override
+	public List<User> findAllById(List<Long> userIds) {
+		return userEntityRepository.findAllById(userIds).stream()
+			.map(UserMapper.INSTANCE::toDomain)
+			.toList();
 	}
 
 	@Override

@@ -25,8 +25,17 @@ public class JpaRestaurantRepository implements RestaurantRepository {
 	}
 
 	@Override
-	public List<Long> findRestaurantIdsByOwnerId(Long ownerId) {
-		return restaurantEntityRepository.findRestaurantIdsByOwnerId(ownerId);
+	public List<Restaurant> findAllByOwnerId(Long ownerId) {
+		return restaurantEntityRepository.findAllByOwnerId(ownerId).stream()
+			.map(RestaurantMapper.INSTANCE::toDomain)
+			.toList();
+	}
+
+	@Override
+	public List<Restaurant> findAllById(List<Long> restaurantIds) {
+		return restaurantEntityRepository.findAllById(restaurantIds).stream()
+			.map(RestaurantMapper.INSTANCE::toDomain)
+			.toList();
 	}
 
 	@Override

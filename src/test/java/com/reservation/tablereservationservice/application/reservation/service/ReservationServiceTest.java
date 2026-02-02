@@ -28,6 +28,7 @@ import com.reservation.tablereservationservice.domain.reservation.DailySlotCapac
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.domain.restaurant.Restaurant;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
@@ -238,25 +239,37 @@ class ReservationServiceTest {
 	}
 
 	@Test
-	@DisplayName("사용자 예약 목록 조회 성공 - 1건")
+	@DisplayName("사용자 예약 목록 조회 성공")
 	void findMyReservations_success() {
 		// given
-		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(reservationResponse(1L)));
+		ReservationSearchDto searchDto = createSearchDto();
 
-		ReservationSearchDto searchDto = new ReservationSearchDto();
-		searchDto.setFromDate(TEST_DATE);
-		searchDto.setToDate(TEST_DATE);
-		searchDto.setStatus(ReservationStatus.CONFIRMED);
-		searchDto.setPageable(PAGEABLE);
+		Long slotId = 10L;
+		Long restaurantId = 100L;
+		ReservationListFixture fixture = reservationListFixture(customer.getUserId(), slotId, restaurantId);
 
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
+
+		Page<Reservation> confirmedOnlyPage =
+			new PageImpl<>(
+				fixture.page().getContent().stream()
+					.filter(r -> r.getStatus() == ReservationStatus.CONFIRMED)
+					.toList(), PAGEABLE, 1
+			);
+
 		given(reservationRepository.findMyReservations(
 			eq(customer.getUserId()),
 			eq(ReservationStatus.CONFIRMED),
 			any(),
 			any(),
 			any()
-		)).willReturn(page);
+		)).willReturn(confirmedOnlyPage);
+
+		given(restaurantSlotRepository.findAllById(anyList()))
+			.willReturn(List.of(fixture.slot()));
+
+		given(restaurantRepository.findAllById(anyList()))
+			.willReturn(List.of(fixture.restaurant()));
 
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
@@ -269,21 +282,20 @@ class ReservationServiceTest {
 	}
 
 	@Test
-	@DisplayName("점주 예약 목록 조회 성공 - 1건")
+	@DisplayName("점주 예약 목록 조회 성공")
 	void findOwnerReservations_success() {
 		// given
-		Long ownerRestaurantId = 2L;
-		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(reservationResponse(ownerRestaurantId)));
+		ReservationSearchDto searchDto = createSearchDto();
 
-		ReservationSearchDto searchDto = new ReservationSearchDto();
-		searchDto.setFromDate(TEST_DATE);
-		searchDto.setToDate(TEST_DATE);
-		searchDto.setStatus(ReservationStatus.CONFIRMED);
-		searchDto.setPageable(PAGEABLE);
+		Long ownerRestaurantId = 2L;
+		Long slotId = 10L;
+
+		ReservationListFixture fixture = reservationListFixture(customer.getUserId(), slotId, ownerRestaurantId);
 
 		given(userRepository.fetchByEmail(owner.getEmail())).willReturn(owner);
-		given(restaurantRepository.findRestaurantIdsByOwnerId(owner.getUserId()))
-			.willReturn(List.of(ownerRestaurantId));
+
+		given(restaurantRepository.findAllByOwnerId(owner.getUserId()))
+			.willReturn(List.of(fixture.restaurant()));
 
 		given(reservationRepository.findOwnerReservations(
 			eq(List.of(ownerRestaurantId)),
@@ -291,7 +303,17 @@ class ReservationServiceTest {
 			any(),
 			any(),
 			any()
-		)).willReturn(page);
+		)).willReturn(fixture.page());
+
+		given(restaurantSlotRepository.findAllById(anyList()))
+			.willReturn(List.of(fixture.slot()));
+
+		given(restaurantRepository.findAllById(anyList()))
+			.willReturn(List.of(fixture.restaurant()));
+
+		// owner 조회는 예약자 정보가 여러 명이므로 userRepository.findAllById 호출됨
+		given(userRepository.findAllById(anyList()))
+			.willReturn(List.of(customer));
 
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
@@ -303,14 +325,52 @@ class ReservationServiceTest {
 		assertThat(result.getContent().getFirst().getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 	}
 
-	private ReservationListResponseDto reservationResponse(Long restaurantId) {
-		return ReservationListResponseDto.builder()
+	private ReservationSearchDto createSearchDto() {
+		ReservationSearchDto searchDto = new ReservationSearchDto();
+		searchDto.setFromDate(TEST_DATE);
+		searchDto.setToDate(TEST_DATE);
+		searchDto.setStatus(ReservationStatus.CONFIRMED);
+		searchDto.setPageable(PAGEABLE);
+		return searchDto;
+	}
+
+	private ReservationListFixture reservationListFixture(
+		Long userId,
+		Long slotId,
+		Long restaurantId
+	) {
+		Reservation confirmed = Reservation.builder()
 			.reservationId(1L)
-			.restaurantId(restaurantId)
-			.restaurantName("강남 한상")
+			.userId(userId)
+			.slotId(slotId)
 			.visitAt(TEST_VISIT_AT)
 			.partySize(2)
+			.note("confirmed")
 			.status(ReservationStatus.CONFIRMED)
 			.build();
+
+		Page<Reservation> page = new PageImpl<>(List.of(confirmed), PAGEABLE, 2);
+
+		RestaurantSlot slot = RestaurantSlot.builder()
+			.slotId(slotId)
+			.restaurantId(restaurantId)
+			.time(TEST_TIME)
+			.maxCapacity(10)
+			.build();
+
+		Restaurant restaurant = Restaurant.builder()
+			.restaurantId(restaurantId)
+			.name("강남 한상")
+			.build();
+
+		return new ReservationListFixture(page, slot, restaurant);
 	}
+
+	private record ReservationListFixture(
+		Page<Reservation> page,
+		RestaurantSlot slot,
+		Restaurant restaurant
+	) {
+	}
+
 }

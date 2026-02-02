@@ -172,7 +172,7 @@ class ReservationControllerIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("내 예약 목록 조회 성공")
+	@DisplayName("내 예약 목록 조회 성공 - 확정건만 조회")
 	void getReservations_me_success_whenCustomerRole() {
 		User customer = userRepository.fetchByEmail("customer@test.com");
 
@@ -189,6 +189,7 @@ class ReservationControllerIntegrationTest {
 			.header("Authorization", "Bearer " + customerAccessToken)
 			.queryParam("fromDate", "2026-01-01")
 			.queryParam("toDate", "2026-02-01")
+			.queryParam("status", ReservationStatus.CONFIRMED)
 		.when()
 			.get("/api/reservations/me")
 		.then()
@@ -203,7 +204,46 @@ class ReservationControllerIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("점주 예약 목록 조회 성공")
+	@DisplayName("내 예약 목록 조회 성공 - status 파라미터 없으면 CONFIRMED + CANCELED 모두 조회")
+	void getReservations_me_success_whenStatusOmitted() {
+		// given
+		User customer = userRepository.fetchByEmail("customer@test.com");
+
+		reservationRepository.save(Reservation.builder()
+			.userId(customer.getUserId())
+			.slotId(slotId)
+			.visitAt(TEST_VISIT_AT)
+			.partySize(2)
+			.note("confirmed")
+			.status(ReservationStatus.CONFIRMED)
+			.build());
+
+		reservationRepository.save(Reservation.builder()
+			.userId(customer.getUserId())
+			.slotId(slotId)
+			.visitAt(TEST_VISIT_AT.plusHours(1))
+			.partySize(2)
+			.note("canceled")
+			.status(ReservationStatus.CANCELED)
+			.build());
+
+		// when & then
+		given().contentType(ContentType.JSON)
+			.header("Authorization", "Bearer " + customerAccessToken)
+			.queryParam("fromDate", "2026-01-01")
+			.queryParam("toDate", "2026-02-01")
+		.when()
+			.get("/api/reservations/me")
+		.then()
+			.statusCode(200)
+			.body("code", equalTo(200))
+			.body("message", equalTo("예약 조회 성공"))
+			.body("data.content.size()", equalTo(2))
+			.body("data.content.status", containsInAnyOrder("CONFIRMED", "CANCELED"));
+	}
+
+	@Test
+	@DisplayName("점주 예약 목록 조회 성공 - 확정건만 조회")
 	void getReservations_owner_success_whenOwnerRole() {
 		User customer = userRepository.fetchByEmail("customer@test.com");
 
@@ -220,6 +260,7 @@ class ReservationControllerIntegrationTest {
 			.header("Authorization", "Bearer " + ownerAccessToken)
 			.queryParam("fromDate", "2026-01-01")
 			.queryParam("toDate", "2026-02-01")
+			.queryParam("status", ReservationStatus.CONFIRMED)
 		.when()
 			.get("/api/reservations/owner")
 		.then()
@@ -231,5 +272,44 @@ class ReservationControllerIntegrationTest {
 			.body("data.content[0].partySize", equalTo(2))
 			.body("data.content[0].status", equalTo("CONFIRMED"))
 			.body("data.content[0].visitAt", startsWith(TEST_VISIT_AT.toString()));
+	}
+
+	@Test
+	@DisplayName("점주 예약 목록 조회 성공 - status 파라미터 없으면 CONFIRMED + CANCELED 모두 조회")
+	void getReservations_owner_success_whenStatusOmitted() {
+		// given
+		User customer = userRepository.fetchByEmail("customer@test.com");
+
+		reservationRepository.save(Reservation.builder()
+			.userId(customer.getUserId())
+			.slotId(slotId)
+			.visitAt(TEST_VISIT_AT)
+			.partySize(2)
+			.note("confirmed")
+			.status(ReservationStatus.CONFIRMED)
+			.build());
+
+		reservationRepository.save(Reservation.builder()
+			.userId(customer.getUserId())
+			.slotId(slotId)
+			.visitAt(TEST_VISIT_AT.plusHours(1))
+			.partySize(2)
+			.note("canceled")
+			.status(ReservationStatus.CANCELED)
+			.build());
+
+		// when & then
+		given().contentType(ContentType.JSON)
+			.header("Authorization", "Bearer " + ownerAccessToken)
+			.queryParam("fromDate", "2026-01-01")
+			.queryParam("toDate", "2026-02-01")
+		.when()
+			.get("/api/reservations/owner")
+		.then()
+			.statusCode(200)
+			.body("code", equalTo(200))
+			.body("message", equalTo("예약 조회 성공"))
+			.body("data.content.size()", equalTo(2))
+			.body("data.content.status", containsInAnyOrder("CONFIRMED", "CANCELED"));
 	}
 }

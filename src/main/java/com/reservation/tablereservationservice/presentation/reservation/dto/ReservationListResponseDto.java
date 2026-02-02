@@ -2,7 +2,10 @@ package com.reservation.tablereservationservice.presentation.reservation.dto;
 
 import java.time.LocalDateTime;
 
+import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.domain.restaurant.Restaurant;
+import com.reservation.tablereservationservice.domain.user.User;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -35,5 +38,23 @@ public class ReservationListResponseDto {
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.status = status;
+	}
+
+	public static ReservationListResponseDto of(
+		User user,
+		Reservation reservation,
+		Restaurant restaurant
+	) {
+		return ReservationListResponseDto.builder()
+			.userName(user.getName())
+			.userPhone(user.getPhone())
+			.note(reservation.getNote())
+			.reservationId(reservation.getReservationId())
+			.restaurantId(restaurant.getRestaurantId())
+			.restaurantName(restaurant.getName())
+			.visitAt(reservation.getVisitAt())
+			.partySize(reservation.getPartySize())
+			.status(reservation.getStatus())
+			.build();
 	}
 }

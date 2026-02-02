@@ -227,11 +227,12 @@ class ReservationServiceIntegrationTest {
 				.build()
 		);
 
-		ReservationSearchDto searchDto = new ReservationSearchDto();
-		searchDto.setFromDate(TEST_DATE);
-		searchDto.setToDate(TEST_DATE);
-		searchDto.setStatus(ReservationStatus.CONFIRMED);
-		searchDto.setPageable(PAGEABLE);
+		reservationService.create(
+			customer.getEmail(),
+			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "note")
+		);
+
+		ReservationSearchDto searchDto = createSearchDto();
 
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
@@ -258,11 +259,7 @@ class ReservationServiceIntegrationTest {
 			new ReservationRequestDto(restaurantSlot.getSlotId(), TEST_DATE, 2, "note")
 		);
 
-		ReservationSearchDto searchDto = new ReservationSearchDto();
-		searchDto.setFromDate(TEST_DATE);
-		searchDto.setToDate(TEST_DATE);
-		searchDto.setStatus(ReservationStatus.CONFIRMED);
-		searchDto.setPageable(PAGEABLE);
+		ReservationSearchDto searchDto = createSearchDto();
 
 		// when
 		PageResponseDto<ReservationListResponseDto> result =
@@ -271,4 +268,14 @@ class ReservationServiceIntegrationTest {
 		// then
 		assertThat(result.getContent()).hasSize(1);
 	}
+
+	private ReservationSearchDto createSearchDto() {
+		ReservationSearchDto searchDto = new ReservationSearchDto();
+		searchDto.setFromDate(TEST_DATE);
+		searchDto.setToDate(TEST_DATE);
+		searchDto.setStatus(ReservationStatus.CONFIRMED);
+		searchDto.setPageable(PAGEABLE);
+		return searchDto;
+	}
+
 }

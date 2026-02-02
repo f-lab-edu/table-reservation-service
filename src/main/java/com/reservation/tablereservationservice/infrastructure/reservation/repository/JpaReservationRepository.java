@@ -12,7 +12,6 @@ import com.reservation.tablereservationservice.domain.reservation.ReservationRep
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.infrastructure.reservation.entity.ReservationEntity;
 import com.reservation.tablereservationservice.infrastructure.reservation.mapper.ReservationMapper;
-import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,25 +39,30 @@ public class JpaReservationRepository implements ReservationRepository {
 	}
 
 	@Override
-	public Page<ReservationListResponseDto> findMyReservations(
-		Long userId,
-		ReservationStatus status,
-		LocalDateTime from,
-		LocalDateTime to,
-		Pageable pageable
-	) {
-		return reservationEntityRepository.findMyReservationList(userId, status, from, to, pageable);
-	}
+		public Page<Reservation> findMyReservations(
+			Long userId,
+			ReservationStatus status,
+			LocalDateTime from,
+			LocalDateTime to,
+			Pageable pageable
+		) {
+			Page<ReservationEntity> page = (status == null)
+				? reservationEntityRepository.findByUserIdAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, from, to, pageable)
+				: reservationEntityRepository.findByUserIdAndStatusAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, status, from, to, pageable);
+
+			return page.map(ReservationMapper.INSTANCE::toDomain);
+		}
 
 	@Override
-	public Page<ReservationListResponseDto> findOwnerReservations(
+	public Page<Reservation> findOwnerReservations(
 		List<Long> restaurantIds,
 		ReservationStatus status,
 		LocalDateTime from,
 		LocalDateTime to,
 		Pageable pageable
 	) {
-		return reservationEntityRepository.findOwnerReservations(restaurantIds, status, from, to, pageable);
+		return reservationEntityRepository.findOwnerReservations(restaurantIds, status, from, to, pageable)
+			.map(ReservationMapper.INSTANCE::toDomain);
 	}
 
 	@Override
