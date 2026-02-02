@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.infrastructure.restaurant.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -38,6 +39,14 @@ public class JpaRestaurantSlotRepository implements RestaurantSlotRepository {
 	public RestaurantSlot fetchById(Long slotId) {
 		return findById(slotId)
 			.orElseThrow(() -> new RestaurantException(ErrorCode.RESOURCE_NOT_FOUND, "Restaurant"));
+	}
+
+	@Override
+	public List<RestaurantSlot> findAllById(List<Long> slotIds) {
+		return restaurantSlotEntityRepository.findAllById(slotIds)
+			.stream()
+			.map(RestaurantMapper.INSTANCE::toDomain)
+			.toList();
 	}
 
 	@Override

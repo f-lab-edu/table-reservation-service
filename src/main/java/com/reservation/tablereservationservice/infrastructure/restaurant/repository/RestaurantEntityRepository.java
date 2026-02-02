@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.infrastructure.restaurant.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,4 +10,6 @@ import com.reservation.tablereservationservice.infrastructure.restaurant.entity.
 public interface RestaurantEntityRepository extends JpaRepository<RestaurantEntity, Long> {
 
 	Optional<RestaurantEntity> findById(Long restaurantId);
+
+	List<RestaurantEntity> findAllByOwnerId(Long ownerId);
 }

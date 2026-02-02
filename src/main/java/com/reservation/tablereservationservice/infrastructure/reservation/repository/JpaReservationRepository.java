@@ -1,7 +1,10 @@
 package com.reservation.tablereservationservice.infrastructure.reservation.repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
@@ -27,9 +30,39 @@ public class JpaReservationRepository implements ReservationRepository {
 	}
 
 	@Override
-	public boolean existsByUserIdAndVisitAtAndStatus(Long userId, LocalDateTime visitAt,
-		ReservationStatus reservationStatus) {
+	public boolean existsByUserIdAndVisitAtAndStatus(
+		Long userId,
+		LocalDateTime visitAt,
+		ReservationStatus reservationStatus
+	) {
 		return reservationEntityRepository.existsByUserIdAndVisitAtAndStatus(userId, visitAt, reservationStatus);
+	}
+
+	@Override
+		public Page<Reservation> findMyReservations(
+			Long userId,
+			ReservationStatus status,
+			LocalDateTime from,
+			LocalDateTime to,
+			Pageable pageable
+		) {
+			Page<ReservationEntity> page = (status == null)
+				? reservationEntityRepository.findByUserIdAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, from, to, pageable)
+				: reservationEntityRepository.findByUserIdAndStatusAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, status, from, to, pageable);
+
+			return page.map(ReservationMapper.INSTANCE::toDomain);
+		}
+
+	@Override
+	public Page<Reservation> findOwnerReservations(
+		List<Long> restaurantIds,
+		ReservationStatus status,
+		LocalDateTime from,
+		LocalDateTime to,
+		Pageable pageable
+	) {
+		return reservationEntityRepository.findOwnerReservations(restaurantIds, status, from, to, pageable)
+			.map(ReservationMapper.INSTANCE::toDomain);
 	}
 
 	@Override

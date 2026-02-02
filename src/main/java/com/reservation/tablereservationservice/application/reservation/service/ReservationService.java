@@ -1,8 +1,15 @@
 package com.reservation.tablereservationservice.application.reservation.service;
 
+import static java.util.stream.Collectors.*;
+
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,13 +18,18 @@ import com.reservation.tablereservationservice.domain.reservation.DailySlotCapac
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.domain.restaurant.Restaurant;
+import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +43,7 @@ public class ReservationService {
 	private final RestaurantSlotRepository restaurantSlotRepository;
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationRepository reservationRepository;
+	private final RestaurantRepository restaurantRepository;
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
@@ -67,6 +80,126 @@ public class ReservationService {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
 		}
 
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponseDto<ReservationListResponseDto> findMyReservations(
+		String email,
+		ReservationSearchDto searchDto
+	) {
+		User user = userRepository.fetchByEmail(email);
+
+		// page reservation 조회
+		Page<Reservation> page =
+			reservationRepository.findMyReservations(
+				user.getUserId(),
+				searchDto.getStatus(),
+				searchDto.getStartDate().atStartOfDay(),
+				searchDto.getEndDate().atTime(LocalTime.MAX),
+				searchDto.getPageable()
+			);
+
+		if (page.isEmpty()) {
+			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
+		}
+
+		Map<Long, User> idToUser = Map.of(user.getUserId(), user);
+		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, idToUser);
+
+		return PageResponseDto.from(dtoPage);
+	}
+
+	@Transactional(readOnly = true)
+	public PageResponseDto<ReservationListResponseDto> findOwnerReservations(
+		String email,
+		ReservationSearchDto searchDto
+	) {
+		User owner = userRepository.fetchByEmail(email);
+
+		List<Long> restaurantIds = restaurantRepository.findAllByOwnerId(owner.getUserId()).stream()
+			.map(Restaurant::getRestaurantId)
+			.toList();
+
+		if (restaurantIds.isEmpty()) {
+			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
+		}
+
+		// page reservation 조회
+		Page<Reservation> page = reservationRepository.findOwnerReservations(
+			restaurantIds,
+			searchDto.getStatus(),
+			searchDto.getStartDate().atStartOfDay(),
+			searchDto.getEndDate().atTime(LocalTime.MAX),
+			searchDto.getPageable()
+		);
+
+		if (page.isEmpty()) {
+			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
+		}
+
+		// owner는 예약자(user)가 여러 명이므로 userMap을 따로 구성
+		List<Long> userIds = page.getContent().stream()
+			.map(Reservation::getUserId)
+			.distinct()
+			.toList();
+
+		Map<Long, User> idToUser = userRepository.findAllById(userIds).stream()
+			.collect(toMap(User::getUserId, Function.identity()));
+
+		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, idToUser);
+
+		return PageResponseDto.from(dtoPage);
+	}
+
+	private Page<ReservationListResponseDto> createReservationListDtoPage(
+		Page<Reservation> page,
+		Map<Long, User> idToUser
+	) {
+		Map<Long, RestaurantSlot> idToSlot = loadSlotMap(page);
+		Map<Long, Restaurant> idToRestaurant = loadRestaurantMap(idToSlot);
+
+		return page.map(reservation -> {
+			User user = idToUser.get(reservation.getUserId());
+			if (user == null) {
+				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
+					"User (userId=" + reservation.getUserId() + ")");
+			}
+
+			RestaurantSlot slot = idToSlot.get(reservation.getSlotId());
+			if (slot == null) {
+				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
+					"RestaurantSlot (slotId=" + reservation.getSlotId() + ")"
+				);
+			}
+
+			Restaurant restaurant = idToRestaurant.get(slot.getRestaurantId());
+			if (restaurant == null) {
+				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
+					"Restaurant (restaurantId=" + slot.getRestaurantId() + ")");
+			}
+
+			return ReservationListResponseDto.of(user, reservation, restaurant);
+		});
+	}
+
+	private Map<Long, RestaurantSlot> loadSlotMap(Page<Reservation> page) {
+		List<Long> slotIds = page.getContent().stream()
+			.map(Reservation::getSlotId)
+			.distinct()
+			.toList();
+
+		return restaurantSlotRepository.findAllById(slotIds).stream()
+			.collect(toMap(RestaurantSlot::getSlotId, Function.identity()));
+	}
+
+	private Map<Long, Restaurant> loadRestaurantMap(Map<Long, RestaurantSlot> idToSlot) {
+		List<Long> restaurantIds = idToSlot.values().stream()
+			.map(RestaurantSlot::getRestaurantId)
+			.distinct()
+			.toList();
+
+		return restaurantRepository.findAllById(restaurantIds).stream()
+			.collect(toMap(Restaurant::getRestaurantId, Function.identity()));
 	}
 
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {
