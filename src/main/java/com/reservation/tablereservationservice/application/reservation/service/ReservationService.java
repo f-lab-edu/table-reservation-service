@@ -103,8 +103,8 @@ public class ReservationService {
 			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
 		}
 
-		Map<Long, User> userMap = Map.of(user.getUserId(), user);
-		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, userMap);
+		Map<Long, User> idToUser = Map.of(user.getUserId(), user);
+		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, idToUser);
 
 		return PageResponseDto.from(dtoPage);
 	}
@@ -143,42 +143,42 @@ public class ReservationService {
 			.distinct()
 			.toList();
 
-		Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
+		Map<Long, User> idToUser = userRepository.findAllById(userIds).stream()
 			.collect(toMap(User::getUserId, Function.identity()));
 
-		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, userMap);
+		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, idToUser);
 
 		return PageResponseDto.from(dtoPage);
 	}
 
 	private Page<ReservationListResponseDto> createReservationListDtoPage(
 		Page<Reservation> page,
-		Map<Long, User> userMap
+		Map<Long, User> idToUser
 	) {
-		Map<Long, RestaurantSlot> slotMap = loadSlotMap(page);
-		Map<Long, Restaurant> restaurantMap = loadRestaurantMap(slotMap);
+		Map<Long, RestaurantSlot> idToSlot = loadSlotMap(page);
+		Map<Long, Restaurant> idToRestaurant = loadRestaurantMap(idToSlot);
 
-		return page.map(r -> {
-			User user = userMap.get(r.getUserId());
+		return page.map(reservation -> {
+			User user = idToUser.get(reservation.getUserId());
 			if (user == null) {
 				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
-					"User (userId=" + r.getUserId() + ")");
+					"User (userId=" + reservation.getUserId() + ")");
 			}
 
-			RestaurantSlot slot = slotMap.get(r.getSlotId());
+			RestaurantSlot slot = idToSlot.get(reservation.getSlotId());
 			if (slot == null) {
 				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
-					"RestaurantSlot (slotId=" + r.getSlotId() + ")"
+					"RestaurantSlot (slotId=" + reservation.getSlotId() + ")"
 				);
 			}
 
-			Restaurant restaurant = restaurantMap.get(slot.getRestaurantId());
+			Restaurant restaurant = idToRestaurant.get(slot.getRestaurantId());
 			if (restaurant == null) {
 				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
 					"Restaurant (restaurantId=" + slot.getRestaurantId() + ")");
 			}
 
-			return ReservationListResponseDto.of(user, r, restaurant);
+			return ReservationListResponseDto.of(user, reservation, restaurant);
 		});
 	}
 
@@ -192,8 +192,8 @@ public class ReservationService {
 			.collect(toMap(RestaurantSlot::getSlotId, Function.identity()));
 	}
 
-	private Map<Long, Restaurant> loadRestaurantMap(Map<Long, RestaurantSlot> slotMap) {
-		List<Long> restaurantIds = slotMap.values().stream()
+	private Map<Long, Restaurant> loadRestaurantMap(Map<Long, RestaurantSlot> idToSlot) {
+		List<Long> restaurantIds = idToSlot.values().stream()
 			.map(RestaurantSlot::getRestaurantId)
 			.distinct()
 			.toList();
