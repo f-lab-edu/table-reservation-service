@@ -5,19 +5,26 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -38,8 +45,11 @@ import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
+import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationResponseDto;
+import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 @WebMvcTest(ReservationController.class)
 @Import({GlobalExceptionHandler.class, ReservationControllerTest.TestSecurityConfig.class})
@@ -54,9 +64,6 @@ class ReservationControllerTest {
 
 	@MockitoBean
 	private ReservationService reservationService;
-
-	@MockitoBean
-	private Authentication authentication;
 
 	@Test
 	@DisplayName("예약 요청 성공 - CUSTOMER 권한이면 200 및 응답 바디 반환")
@@ -88,7 +95,7 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
 		);
 
 		// when
@@ -96,6 +103,7 @@ class ReservationControllerTest {
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
+			.andExpect(status().isOk())
 			.andReturn();
 
 		// then
@@ -113,7 +121,7 @@ class ReservationControllerTest {
 		assertThat(data.getReservationId()).isEqualTo(999L);
 		assertThat(data.getPartySize()).isEqualTo(2);
 
-		verify(reservationService, times(1)).create(eq(email), any(ReservationRequestDto.class));
+		verify(reservationService).create(eq(email), any(ReservationRequestDto.class));
 	}
 
 	@Test
@@ -132,7 +140,7 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
 		);
 
 		// when
@@ -140,6 +148,7 @@ class ReservationControllerTest {
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
+			.andExpect(status().isBadRequest())
 			.andReturn();
 
 		// then
@@ -159,7 +168,7 @@ class ReservationControllerTest {
 		assertThat(errors.get("date")).isEqualTo("예약 날짜는 필수입니다.");
 		assertThat(errors.get("partySize")).isEqualTo("예약 인원은 1명 이상이어야 합니다.");
 
-		verify(reservationService, times(0)).create(anyString(), any());
+		verify(reservationService, never()).create(anyString(), any());
 	}
 
 	@Test
@@ -177,19 +186,18 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_OWNER"))
+			List.of(new SimpleGrantedAuthority("ROLE_OWNER"))
 		);
 
 		// when
-		MvcResult mvcResult = mockMvc.perform(post("/api/reservations")
+		mockMvc.perform(post("/api/reservations")
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
-			.andReturn();
+			.andExpect(status().isForbidden());
 
 		// then
-		assertThat(mvcResult.getResponse().getStatus()).isEqualTo(403);
-		verify(reservationService, times(0)).create(anyString(), any());
+		verify(reservationService, never()).create(anyString(), any());
 	}
 
 	@Test
@@ -210,13 +218,15 @@ class ReservationControllerTest {
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
 			null,
-			java.util.List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
 		);
+
 		// when
 		MvcResult mvcResult = mockMvc.perform(post("/api/reservations")
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(requestDto)))
+			.andExpect(status().isConflict())
 			.andReturn();
 
 		// then
@@ -230,7 +240,115 @@ class ReservationControllerTest {
 		assertThat(response.getMessage()).isEqualTo(ErrorCode.RESERVATION_DUPLICATED_TIME.getMessage());
 		assertThat(response.getData()).isNull();
 
-		verify(reservationService, times(1)).create(eq(email), any(ReservationRequestDto.class));
+		verify(reservationService).create(eq(email), any(ReservationRequestDto.class));
+	}
+
+	@Test
+	@DisplayName("내 예약 목록 조회 성공 - 200 및 응답 바디 반환")
+	void getReservations_me_success_whenCustomerRole() throws Exception {
+		// given
+		String email = "customer01@test.com";
+
+		ReservationListResponseDto content = ReservationListResponseDto.builder()
+			.reservationId(1L)
+			.restaurantId(1L)
+			.restaurantName("테스트 식당")
+			.visitAt(LocalDateTime.of(2026, 1, 27, 12, 0))
+			.partySize(2)
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		Pageable pageable = PageRequest.of(0, 10);
+		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(content), pageable, 1);
+		PageResponseDto<ReservationListResponseDto> responseDto = PageResponseDto.from(page);
+
+		given(reservationService.findMyReservations(
+			eq(email),
+			any(ReservationSearchDto.class)
+		)).willReturn(responseDto);
+
+		Authentication auth = new UsernamePasswordAuthenticationToken(
+			email,
+			null,
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+		);
+
+		// when
+		MvcResult mvcResult = mockMvc.perform(get("/api/reservations/me")
+				.with(authentication(auth))
+				.param("fromDate", "2026-01-27")
+				.param("toDate", "2026-02-27")
+				.param("status", "CONFIRMED"))
+			.andExpect(status().isOk())
+			.andReturn();
+
+		// then
+		ApiResponse<Object> response = readResponse(
+			mvcResult,
+			new TypeReference<ApiResponse<Object>>() {
+			}
+		);
+
+		assertThat(response.getCode()).isEqualTo(200);
+		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
+		assertThat(response.getData()).isNotNull();
+
+		ArgumentCaptor<ReservationSearchDto> searchCaptor = ArgumentCaptor.forClass(ReservationSearchDto.class);
+		verify(reservationService).findMyReservations(eq(email), searchCaptor.capture());
+	}
+
+	@Test
+	@DisplayName("점주 예약 목록 조회 성공 - 200 및 응답 바디 반환")
+	void getReservations_owner_success_whenOwnerRole() throws Exception {
+		// given
+		String email = "owner@test.com";
+
+		ReservationListResponseDto content = ReservationListResponseDto.builder()
+			.reservationId(1L)
+			.restaurantId(1L)
+			.restaurantName("테스트 식당")
+			.visitAt(LocalDateTime.of(2026, 1, 27, 12, 0))
+			.partySize(2)
+			.status(ReservationStatus.CONFIRMED)
+			.build();
+
+		Pageable pageable = PageRequest.of(0, 10);
+		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(content), pageable, 1);
+		PageResponseDto<ReservationListResponseDto> responseDto = PageResponseDto.from(page);
+
+		given(reservationService.findOwnerReservations(
+			eq(email),
+			any(ReservationSearchDto.class)
+		)).willReturn(responseDto);
+
+		Authentication auth = new UsernamePasswordAuthenticationToken(
+			email,
+			null,
+			List.of(new SimpleGrantedAuthority("ROLE_OWNER"))
+		);
+
+		// when
+		MvcResult mvcResult = mockMvc.perform(get("/api/reservations/owner")
+				.with(authentication(auth))
+				.param("fromDate", "2026-01-27")
+				.param("toDate", "2026-02-27")
+				.param("status", "CONFIRMED"))
+			.andExpect(status().isOk())
+			.andReturn();
+
+		// then
+		ApiResponse<Object> response = readResponse(
+			mvcResult,
+			new TypeReference<ApiResponse<Object>>() {
+			}
+		);
+
+		assertThat(response.getCode()).isEqualTo(200);
+		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
+		assertThat(response.getData()).isNotNull();
+
+		ArgumentCaptor<ReservationSearchDto> searchCaptor = ArgumentCaptor.forClass(ReservationSearchDto.class);
+		verify(reservationService).findOwnerReservations(eq(email), searchCaptor.capture());
 	}
 
 	private <T> ApiResponse<T> readResponse(

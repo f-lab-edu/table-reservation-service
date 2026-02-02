@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.domain.user;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository {
@@ -13,6 +14,8 @@ public interface UserRepository {
 	Optional<User> findByEmail(String email);
 
 	User fetchByEmail(String email);
+
+	List<User> findAllById(List<Long> userIds);
 
 	void deleteAll();
 }
