@@ -15,7 +15,7 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class UserFixture {
 
-	private Long userId = 1L;
+	private Long userId = null;
 	private String email = "customer@test.com";
 	private String name = "user";
 	private String phone = "010-0000-0000";
@@ -39,13 +39,17 @@ public class UserFixture {
 	}
 
 	public User build() {
-		return User.builder()
-			.userId(userId)
+		User.UserBuilder builder = User.builder()
 			.email(email)
 			.name(name)
 			.phone(phone)
 			.password(password)
-			.userRole(userRole)
-			.build();
+			.userRole(userRole);
+
+		if (userId != null) {
+			builder.userId(userId);
+		}
+
+		return builder.build();
 	}
 }
