@@ -10,11 +10,18 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+import com.reservation.tablereservationservice.domain.user.User;
+import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.annotation.LoginUser;
 import com.reservation.tablereservationservice.global.common.CurrentUser;
 
+import lombok.RequiredArgsConstructor;
+
 @Component
+@RequiredArgsConstructor
 public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver {
+
+	private final UserRepository userRepository;
 
 	@Override
 	public boolean supportsParameter(MethodParameter parameter) {
@@ -23,8 +30,11 @@ public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver 
 	}
 
 	@Override
-	public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
-		NativeWebRequest webRequest, WebDataBinderFactory binderFactory) throws Exception {
+	public Object resolveArgument(
+		MethodParameter parameter, ModelAndViewContainer mavContainer,
+		NativeWebRequest webRequest, WebDataBinderFactory binderFactory
+	) {
+
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
 		if (authentication instanceof AnonymousAuthenticationToken) {
@@ -32,10 +42,13 @@ public class LoginUserArgumentResolver implements HandlerMethodArgumentResolver 
 		}
 
 		Object principal = authentication.getPrincipal();
-		if (!(principal instanceof String)) {
+		if (!(principal instanceof String email)) {
 			return null;
 		}
 
-		return new CurrentUser(null, (String)principal);
+		User user = userRepository.findByEmail(email)
+			.orElseThrow(() -> new IllegalStateException("Authenticated but user not found. email=" + email));
+
+		return new CurrentUser(user.getUserId(), email);
 	}
 }
