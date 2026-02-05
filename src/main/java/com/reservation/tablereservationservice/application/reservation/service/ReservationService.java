@@ -193,7 +193,8 @@ public class ReservationService {
 
 		Reservation reservation = reservationRepository.fetchById(reservationId);
 
-		validateCancelable(user.getUserId(), reservation);
+		LocalDateTime now = LocalDateTime.now();
+		validateCancelable(user.getUserId(), reservation, now);
 		reservation.cancel();
 
 		DailySlotCapacity capacity = dailySlotCapacityRepository
@@ -245,17 +246,16 @@ public class ReservationService {
 		dailySlotCapacityRepository.updateRemainingCount(capacity);
 	}
 
-	private void validateCancelable(Long userId, Reservation reservation) {
-		if (!reservation.getUserId().equals(userId)) {
+	private void validateCancelable(Long userId, Reservation reservation, LocalDateTime now) {
+		if (!reservation.isOwner(userId)) {
 			throw new ReservationException(ErrorCode.RESERVATION_FORBIDDEN);
 		}
 
-		if (reservation.getStatus() == ReservationStatus.CANCELED) {
+		if (reservation.isAlreadyCanceled()) {
 			throw new ReservationException(ErrorCode.RESERVATION_ALREADY_CANCELED);
 		}
 
-		LocalDateTime cancelDeadline = reservation.getVisitAt().minusHours(24);
-		if (!LocalDateTime.now().isBefore(cancelDeadline)) {
+		if (!reservation.canCancelAt(now)) {
 			throw new ReservationException(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED);
 		}
 	}
