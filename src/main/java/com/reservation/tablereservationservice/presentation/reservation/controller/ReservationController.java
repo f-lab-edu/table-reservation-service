@@ -3,9 +3,9 @@ package com.reservation.tablereservationservice.presentation.reservation.control
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -79,6 +79,15 @@ public class ReservationController {
 
 		return ApiResponse.success("예약 조회 성공", responseDto);
 
+	}
+
+	@CustomerOnly
+	@PostMapping("/{reservationId}/cancel")
+	public ApiResponse<ReservationResponseDto> cancel(@PathVariable Long reservationId, @LoginUser CurrentUser user) {
+		Reservation reservation = reservationService.cancel(user.email(), reservationId);
+		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
+
+		return ApiResponse.success("예약 취소 성공", responseDto);
 	}
 
 }

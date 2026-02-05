@@ -28,4 +28,25 @@ public class Reservation {
 		this.status = status;
 	}
 
+	public boolean isOwner(Long userId) {
+		return this.userId != null && this.userId.equals(userId);
+	}
+
+	public boolean isAlreadyCanceled() {
+		return this.status == ReservationStatus.CANCELED;
+	}
+
+	/**
+	 * 취소 가능 기한(방문 24시간 전) 내에 있는지 확인
+	 * @param now 현재 시점
+	 */
+	public boolean canCancelAt(LocalDateTime now) {
+		LocalDateTime cancelDeadline = this.visitAt.minusHours(24);
+		return now.isBefore(cancelDeadline);
+	}
+
+	public void cancel() {
+		this.status = ReservationStatus.CANCELED;
+	}
+
 }

@@ -161,25 +161,50 @@ public class ReservationService {
 		return page.map(reservation -> {
 			User user = idToUser.get(reservation.getUserId());
 			if (user == null) {
-				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
-					"User (userId=" + reservation.getUserId() + ")");
+				throw new ReservationException(
+					ErrorCode.RESOURCE_NOT_FOUND,
+					"User (userId=" + reservation.getUserId() + ")"
+				);
 			}
 
 			RestaurantSlot slot = idToSlot.get(reservation.getSlotId());
 			if (slot == null) {
-				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
+				throw new ReservationException(
+					ErrorCode.RESOURCE_NOT_FOUND,
 					"RestaurantSlot (slotId=" + reservation.getSlotId() + ")"
 				);
 			}
 
 			Restaurant restaurant = idToRestaurant.get(slot.getRestaurantId());
 			if (restaurant == null) {
-				throw new ReservationException(ErrorCode.RESOURCE_NOT_FOUND,
-					"Restaurant (restaurantId=" + slot.getRestaurantId() + ")");
+				throw new ReservationException(
+					ErrorCode.RESOURCE_NOT_FOUND,
+					"Restaurant (restaurantId=" + slot.getRestaurantId() + ")"
+				);
 			}
 
 			return ReservationListResponseDto.of(user, reservation, restaurant);
 		});
+	}
+
+	@Transactional
+	public Reservation cancel(String email, Long reservationId) {
+		User user = userRepository.fetchByEmail(email);
+
+		Reservation reservation = reservationRepository.fetchById(reservationId);
+
+		LocalDateTime now = LocalDateTime.now();
+		validateCancelable(user.getUserId(), reservation, now);
+		reservation.cancel();
+
+		DailySlotCapacity capacity = dailySlotCapacityRepository
+			.findBySlotIdAndDate(reservation.getSlotId(), reservation.getVisitAt().toLocalDate())
+			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
+
+		restoreCapacity(capacity, reservation.getPartySize());
+		reservationRepository.updateStatus(reservation);
+
+		return reservation;
 	}
 
 	private Map<Long, RestaurantSlot> loadSlotMap(Page<Reservation> page) {
@@ -218,6 +243,25 @@ public class ReservationService {
 		if (!capacity.decrease(partySize)) {
 			throw new ReservationException(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH);
 		}
+		dailySlotCapacityRepository.updateRemainingCount(capacity);
+	}
+
+	private void validateCancelable(Long userId, Reservation reservation, LocalDateTime now) {
+		if (!reservation.isOwner(userId)) {
+			throw new ReservationException(ErrorCode.RESERVATION_FORBIDDEN);
+		}
+
+		if (reservation.isAlreadyCanceled()) {
+			throw new ReservationException(ErrorCode.RESERVATION_ALREADY_CANCELED);
+		}
+
+		if (!reservation.canCancelAt(now)) {
+			throw new ReservationException(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED);
+		}
+	}
+
+	private void restoreCapacity(DailySlotCapacity capacity, int partySize) {
+		capacity.increase(partySize);
 		dailySlotCapacityRepository.updateRemainingCount(capacity);
 	}
 

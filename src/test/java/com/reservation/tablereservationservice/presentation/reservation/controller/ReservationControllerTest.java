@@ -14,17 +14,12 @@ import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -43,18 +38,17 @@ import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
-import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
-import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
-import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationResponseDto;
-import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationSearchDto;
 
 @WebMvcTest(ReservationController.class)
 @Import({GlobalExceptionHandler.class, ReservationControllerTest.TestSecurityConfig.class})
 @AutoConfigureMockMvc
 class ReservationControllerTest {
+
+	private static final LocalDate BASE_DATE = LocalDate.of(2030, 1, 1);
+	private static final LocalDateTime BASE_VISIT_AT = LocalDateTime.of(2030, 1, 1, 19, 0);
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -70,11 +64,10 @@ class ReservationControllerTest {
 	void create_success_whenCustomerRole() throws Exception {
 		// given
 		String email = "customer01@test.com";
-		LocalDate date = LocalDate.of(2026, 1, 26);
 
 		ReservationRequestDto requestDto = new ReservationRequestDto(
 			10L,
-			date,
+			BASE_DATE,
 			2,
 			"note"
 		);
@@ -83,7 +76,7 @@ class ReservationControllerTest {
 			.reservationId(999L)
 			.userId(1L)
 			.slotId(10L)
-			.visitAt(LocalDateTime.of(2026, 1, 26, 19, 0))
+			.visitAt(BASE_VISIT_AT)
 			.partySize(2)
 			.note("note")
 			.status(ReservationStatus.CONFIRMED)
@@ -120,13 +113,14 @@ class ReservationControllerTest {
 		assertThat(data).isNotNull();
 		assertThat(data.getReservationId()).isEqualTo(999L);
 		assertThat(data.getPartySize()).isEqualTo(2);
+		assertThat(data.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
 
 		verify(reservationService).create(eq(email), any(ReservationRequestDto.class));
 	}
 
 	@Test
 	@DisplayName("예약 요청 실패 - 요청 DTO 검증 실패 시 400 + 상세 에러 메시지 반환")
-	void create_InvalidRequestDto_ReturnsBadRequest() throws Exception {
+	void create_invalidRequestDto_returnsBadRequest() throws Exception {
 		// given
 		String email = "customer01@test.com";
 
@@ -173,12 +167,12 @@ class ReservationControllerTest {
 
 	@Test
 	@DisplayName("예약 요청 실패 - CUSTOMER 권한이 아니면 403")
-	void create_Fail_NotCustomerRole_ReturnsForbidden() throws Exception {
+	void create_fail_notCustomerRole_returnsForbidden() throws Exception {
 		// given
 		String email = "owner@test.com";
 		ReservationRequestDto requestDto = new ReservationRequestDto(
 			10L,
-			LocalDate.of(2026, 1, 26),
+			BASE_DATE,
 			2,
 			"note"
 		);
@@ -201,71 +195,24 @@ class ReservationControllerTest {
 	}
 
 	@Test
-	@DisplayName("예약 요청 실패 - 중복 예약 예외 발생 시 409 응답")
-	void create_Fail_DuplicatedTime_ReturnsConflict() throws Exception {
+	@DisplayName("예약 취소 성공 - CUSTOMER 권한이면 200 및 응답 바디 반환")
+	void cancel_success_whenCustomerRole() throws Exception {
 		// given
 		String email = "customer01@test.com";
-		ReservationRequestDto requestDto = new ReservationRequestDto(
-			10L,
-			LocalDate.of(2026, 1, 26),
-			2,
-			""
-		);
+		Long reservationId = 999L;
 
-		given(reservationService.create(eq(email), any(ReservationRequestDto.class)))
-			.willThrow(new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME));
-
-		Authentication auth = new UsernamePasswordAuthenticationToken(
-			email,
-			null,
-			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
-		);
-
-		// when
-		MvcResult mvcResult = mockMvc.perform(post("/api/reservations")
-				.with(authentication(auth))
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(requestDto)))
-			.andExpect(status().isConflict())
-			.andReturn();
-
-		// then
-		ApiResponse<Void> response = readResponse(
-			mvcResult,
-			new TypeReference<ApiResponse<Void>>() {
-			}
-		);
-
-		assertThat(response.getCode()).isEqualTo(409);
-		assertThat(response.getMessage()).isEqualTo(ErrorCode.RESERVATION_DUPLICATED_TIME.getMessage());
-		assertThat(response.getData()).isNull();
-
-		verify(reservationService).create(eq(email), any(ReservationRequestDto.class));
-	}
-
-	@Test
-	@DisplayName("내 예약 목록 조회 성공 - 200 및 응답 바디 반환")
-	void getReservations_me_success_whenCustomerRole() throws Exception {
-		// given
-		String email = "customer01@test.com";
-
-		ReservationListResponseDto content = ReservationListResponseDto.builder()
-			.reservationId(1L)
-			.restaurantId(1L)
-			.restaurantName("테스트 식당")
-			.visitAt(LocalDateTime.of(2026, 1, 27, 12, 0))
+		Reservation canceledReservation = Reservation.builder()
+			.reservationId(reservationId)
+			.userId(1L)
+			.slotId(10L)
+			.visitAt(BASE_VISIT_AT)
 			.partySize(2)
-			.status(ReservationStatus.CONFIRMED)
+			.note("note")
+			.status(ReservationStatus.CANCELED)
 			.build();
 
-		Pageable pageable = PageRequest.of(0, 10);
-		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(content), pageable, 1);
-		PageResponseDto<ReservationListResponseDto> responseDto = PageResponseDto.from(page);
-
-		given(reservationService.findMyReservations(
-			eq(email),
-			any(ReservationSearchDto.class)
-		)).willReturn(responseDto);
+		given(reservationService.cancel(eq(email), eq(reservationId)))
+			.willReturn(canceledReservation);
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
@@ -274,52 +221,36 @@ class ReservationControllerTest {
 		);
 
 		// when
-		MvcResult mvcResult = mockMvc.perform(get("/api/reservations/me")
+		MvcResult mvcResult = mockMvc.perform(post("/api/reservations/{reservationId}/cancel", reservationId)
 				.with(authentication(auth))
-				.param("fromDate", "2026-01-27")
-				.param("toDate", "2026-02-27")
-				.param("status", "CONFIRMED"))
+				.contentType(MediaType.APPLICATION_JSON))
 			.andExpect(status().isOk())
 			.andReturn();
 
 		// then
-		ApiResponse<Object> response = readResponse(
+		ApiResponse<ReservationResponseDto> response = readResponse(
 			mvcResult,
-			new TypeReference<ApiResponse<Object>>() {
+			new TypeReference<ApiResponse<ReservationResponseDto>>() {
 			}
 		);
 
 		assertThat(response.getCode()).isEqualTo(200);
-		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
-		assertThat(response.getData()).isNotNull();
+		assertThat(response.getMessage()).isEqualTo("예약 취소 성공");
 
-		ArgumentCaptor<ReservationSearchDto> searchCaptor = ArgumentCaptor.forClass(ReservationSearchDto.class);
-		verify(reservationService).findMyReservations(eq(email), searchCaptor.capture());
+		ReservationResponseDto data = response.getData();
+		assertThat(data).isNotNull();
+		assertThat(data.getReservationId()).isEqualTo(reservationId);
+		assertThat(data.getStatus()).isEqualTo(ReservationStatus.CANCELED);
+
+		verify(reservationService).cancel(eq(email), eq(reservationId));
 	}
 
 	@Test
-	@DisplayName("점주 예약 목록 조회 성공 - 200 및 응답 바디 반환")
-	void getReservations_owner_success_whenOwnerRole() throws Exception {
+	@DisplayName("예약 취소 실패 - CUSTOMER 권한이 아니면 403")
+	void cancel_fail_notCustomerRole_returnsForbidden() throws Exception {
 		// given
 		String email = "owner@test.com";
-
-		ReservationListResponseDto content = ReservationListResponseDto.builder()
-			.reservationId(1L)
-			.restaurantId(1L)
-			.restaurantName("테스트 식당")
-			.visitAt(LocalDateTime.of(2026, 1, 27, 12, 0))
-			.partySize(2)
-			.status(ReservationStatus.CONFIRMED)
-			.build();
-
-		Pageable pageable = PageRequest.of(0, 10);
-		Page<ReservationListResponseDto> page = new PageImpl<>(List.of(content), pageable, 1);
-		PageResponseDto<ReservationListResponseDto> responseDto = PageResponseDto.from(page);
-
-		given(reservationService.findOwnerReservations(
-			eq(email),
-			any(ReservationSearchDto.class)
-		)).willReturn(responseDto);
+		Long reservationId = 999L;
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
@@ -328,27 +259,13 @@ class ReservationControllerTest {
 		);
 
 		// when
-		MvcResult mvcResult = mockMvc.perform(get("/api/reservations/owner")
+		mockMvc.perform(post("/api/reservations/{reservationId}/cancel", reservationId)
 				.with(authentication(auth))
-				.param("fromDate", "2026-01-27")
-				.param("toDate", "2026-02-27")
-				.param("status", "CONFIRMED"))
-			.andExpect(status().isOk())
-			.andReturn();
+				.contentType(MediaType.APPLICATION_JSON))
+			.andExpect(status().isForbidden());
 
 		// then
-		ApiResponse<Object> response = readResponse(
-			mvcResult,
-			new TypeReference<ApiResponse<Object>>() {
-			}
-		);
-
-		assertThat(response.getCode()).isEqualTo(200);
-		assertThat(response.getMessage()).isEqualTo("예약 조회 성공");
-		assertThat(response.getData()).isNotNull();
-
-		ArgumentCaptor<ReservationSearchDto> searchCaptor = ArgumentCaptor.forClass(ReservationSearchDto.class);
-		verify(reservationService).findOwnerReservations(eq(email), searchCaptor.capture());
+		verify(reservationService, never()).cancel(anyString(), anyLong());
 	}
 
 	private <T> ApiResponse<T> readResponse(

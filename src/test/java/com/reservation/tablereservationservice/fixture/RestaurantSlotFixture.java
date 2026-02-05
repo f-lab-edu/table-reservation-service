@@ -3,6 +3,7 @@ package com.reservation.tablereservationservice.fixture;
 import java.time.LocalTime;
 
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +16,7 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RestaurantSlotFixture {
 
-	private Long slotId = 10L;
+	private Long slotId = null;
 	private Long restaurantId = 100L;
 	private LocalTime time = LocalTime.of(19, 0);
 	private int maxCapacity = 10;
@@ -25,11 +26,15 @@ public class RestaurantSlotFixture {
 	}
 
 	public RestaurantSlot build() {
-		return RestaurantSlot.builder()
-			.slotId(slotId)
+		RestaurantSlot.RestaurantSlotBuilder builder = RestaurantSlot.builder()
 			.restaurantId(restaurantId)
 			.time(time)
-			.maxCapacity(maxCapacity)
-			.build();
+			.maxCapacity(maxCapacity);
+
+		if (slotId != null) {
+			builder.slotId(slotId);
+		}
+
+		return builder.build();
 	}
 }

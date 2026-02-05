@@ -35,4 +35,8 @@ public class DailySlotCapacity {
 		return true;
 	}
 
+	public void increase(int partySize) {
+		this.remainingCount += partySize;
+	}
+
 }
