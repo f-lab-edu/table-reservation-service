@@ -1,8 +1,12 @@
 package com.reservation.tablereservationservice.application.notification;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.reservation.tablereservationservice.domain.notification.AlarmMessage;
+import com.reservation.tablereservationservice.domain.notification.Notification;
+import com.reservation.tablereservationservice.domain.notification.NotificationRepository;
 import com.reservation.tablereservationservice.infrastructure.notification.sse.SseEmitterRegistry;
 
 import lombok.RequiredArgsConstructor;
@@ -12,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 public class NotificationService {
 
 	private final SseEmitterRegistry sseEmitterRegistry;
+	private final NotificationRepository notificationRepository;
 
 	public SseEmitter subscribe(Long receiverId) {
 		SseEmitter emitter = sseEmitterRegistry.register(receiverId);
@@ -21,4 +26,13 @@ public class NotificationService {
 
 		return emitter;
 	}
+
+	@Transactional
+	public Long save(AlarmMessage message) {
+		Notification notification = Notification.from(message);
+		Notification saved = notificationRepository.save(notification);
+
+		return saved.getNotificationId();
+	}
+
 }

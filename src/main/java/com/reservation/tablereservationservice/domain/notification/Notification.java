@@ -27,5 +27,16 @@ public class Notification {
 		this.content = content;
 		this.readAt = readAt;
 	}
+
+	public static Notification from(AlarmMessage message) {
+		return Notification.builder()
+			.receiverId(message.getReceiverId())
+			.reservationId(message.getReservationId())
+			.type(message.getType())
+			.title(message.getTitle())
+			.content(message.getContent())
+			.readAt(null)
+			.build();
+	}
 }
 
