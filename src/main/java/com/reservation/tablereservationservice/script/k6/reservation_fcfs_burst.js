@@ -40,7 +40,7 @@ export default function () {
     slotId: SLOT_ID,
     date: getTestDate(),
     partySize: PARTY_SIZE,
-    note: 'pessimistic-lock-test',
+    note: 'optimistic-lock-test',
     requestId: requestId,
   });
 
@@ -62,8 +62,8 @@ export default function () {
   }
 
   check(res, {
-    'is expected status (200 or 4xx)': (r) => [200, 201, 400, 409].includes(r.status),
-  });
+     'status is 200/201/409/400': (r) => [200, 201, 400, 409].includes(r.status),
+   });
 
   // 선착순 결과 확인을 위한 로그
   if (isSuccess) {

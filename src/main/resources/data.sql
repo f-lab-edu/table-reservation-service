@@ -39,21 +39,20 @@ VALUES
 SET @fcfs_date := CURDATE();
 SET @load_start_date := DATE_ADD(@fcfs_date, INTERVAL 1 DAY);
 
--- 정합성 테스트용 (Hot Row 1개, 수량 10개)
+-- 정합성 테스트용 (Hot Row 1개, 수량 10개, version 초기값 0)
 INSERT INTO daily_slot_capacity
-(slot_id, date, remaining_count, created_at, modified_at)
+(slot_id, date, remaining_count, version, created_at, modified_at)
 VALUES
-(1, @fcfs_date, 10, @now, @now);
+(1, @fcfs_date, 10, 0, @now, @now);
 
-
--- 지속 부하용 (7일치 생성)
+-- 지속 부하용 (7일치 생성, version 초기값 0)
 INSERT INTO daily_slot_capacity
-(slot_id, date, remaining_count, created_at, modified_at)
+(slot_id, date, remaining_count, version, created_at, modified_at)
 VALUES
-(1, DATE_ADD(@load_start_date, INTERVAL 0 DAY), 10, @now, @now),
-(1, DATE_ADD(@load_start_date, INTERVAL 1 DAY), 10, @now, @now),
-(1, DATE_ADD(@load_start_date, INTERVAL 2 DAY), 10, @now, @now),
-(1, DATE_ADD(@load_start_date, INTERVAL 3 DAY), 10, @now, @now),
-(1, DATE_ADD(@load_start_date, INTERVAL 4 DAY), 10, @now, @now),
-(1, DATE_ADD(@load_start_date, INTERVAL 5 DAY), 10, @now, @now),
-(1, DATE_ADD(@load_start_date, INTERVAL 6 DAY), 10, @now, @now);
+(1, DATE_ADD(@load_start_date, INTERVAL 0 DAY), 10, 0, @now, @now),
+(1, DATE_ADD(@load_start_date, INTERVAL 1 DAY), 10, 0, @now, @now),
+(1, DATE_ADD(@load_start_date, INTERVAL 2 DAY), 10, 0, @now, @now),
+(1, DATE_ADD(@load_start_date, INTERVAL 3 DAY), 10, 0, @now, @now),
+(1, DATE_ADD(@load_start_date, INTERVAL 4 DAY), 10, 0, @now, @now),
+(1, DATE_ADD(@load_start_date, INTERVAL 5 DAY), 10, 0, @now, @now),
+(1, DATE_ADD(@load_start_date, INTERVAL 6 DAY), 10, 0, @now, @now);
