@@ -43,9 +43,9 @@ public class DailySlotCapacityEntity extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Integer remainingCount;
 
-	// @Version
-	// @Column(nullable = false)
-	// private Long version;
+	@Version
+	@Column(nullable = false)
+	private Long version;
 
 	@Builder
 	public DailySlotCapacityEntity(Long slotId, LocalDate date, Integer remainingCount) {

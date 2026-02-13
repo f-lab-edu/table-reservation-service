@@ -97,7 +97,7 @@ public class ReservationService {
 		validateDuplicatedTime(user.getUserId(), visitAt);
 
 		DailySlotCapacity capacity = dailySlotCapacityRepository
-			.findBySlotIdAndDateForUpdate(slot.getSlotId(), requestDto.getDate())
+			.findBySlotIdAndDate(slot.getSlotId(), requestDto.getDate())
 			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
 
 		// 수량 검증 및 차감

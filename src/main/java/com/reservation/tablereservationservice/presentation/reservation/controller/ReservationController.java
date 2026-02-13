@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.reservation.tablereservationservice.application.reservation.facade.ReservationOptimisticFacade;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.global.annotation.CustomerOnly;
@@ -36,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class ReservationController {
 
 	private final ReservationService reservationService;
+	private final ReservationOptimisticFacade reservationOptimisticFacade;
 	private final RequestSequenceGenerator sequenceGenerator;
 
 	@CustomerOnly
@@ -50,7 +52,6 @@ public class ReservationController {
 		return ApiResponse.success("예약 요청 성공", responseDto);
 	}
 
-	@Profile("stress-test")
 	@PostMapping("/test")
 	public ApiResponse<ReservationResponseDto> create_test(
 		@Valid @RequestBody ReservationRequestDto requestDto,
@@ -59,7 +60,7 @@ public class ReservationController {
 
 		long serverReceivedSeq = sequenceGenerator.next();
 
-		Reservation reservation = reservationService.create(email, requestDto, serverReceivedSeq);
+		Reservation reservation = reservationOptimisticFacade.createWithRetry(email, requestDto, serverReceivedSeq);
 		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
 
 		return ApiResponse.success("예약 요청 성공", responseDto);
