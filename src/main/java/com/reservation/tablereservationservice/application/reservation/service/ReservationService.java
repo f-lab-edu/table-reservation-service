@@ -82,6 +82,46 @@ public class ReservationService {
 
 	}
 
+	// 테스트 전용 오버로딩 메서드
+	@Transactional
+	public Reservation create(String email, ReservationRequestDto requestDto, long serverReceivedSeq) {
+		User user = userRepository.fetchByEmail(email);
+
+		RestaurantSlot slot = restaurantSlotRepository.fetchById(requestDto.getSlotId());
+
+		validatePartySize(requestDto.getPartySize(), slot);
+
+		LocalDateTime visitAt = LocalDateTime.of(requestDto.getDate(), slot.getTime());
+
+		// 중복 시간대 예약 검증
+		validateDuplicatedTime(user.getUserId(), visitAt);
+
+		DailySlotCapacity capacity = dailySlotCapacityRepository
+			.findBySlotIdAndDate(slot.getSlotId(), requestDto.getDate())
+			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
+
+		// 수량 검증 및 차감
+		decreaseCapacity(capacity, requestDto.getPartySize());
+
+		Reservation reservation = Reservation.builder()
+			.userId(user.getUserId())
+			.slotId(slot.getSlotId())
+			.visitAt(visitAt)
+			.partySize(requestDto.getPartySize())
+			.note(requestDto.getNote())
+			.status(ReservationStatus.CONFIRMED)
+			.requestId(requestDto.getRequestId())
+			.serverReceivedSeq(serverReceivedSeq)
+			.build();
+
+		try {
+			return reservationRepository.save(reservation);
+		} catch (DataIntegrityViolationException e) {
+			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
+		}
+
+	}
+
 	@Transactional(readOnly = true)
 	public PageResponseDto<ReservationListResponseDto> findMyReservations(
 		String email,

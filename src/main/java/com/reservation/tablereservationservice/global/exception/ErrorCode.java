@@ -38,6 +38,7 @@ public enum ErrorCode {
 	RESERVATION_CAPACITY_NOT_ENOUGH("예약 가능 좌석이 부족합니다.", HttpStatus.CONFLICT),
 	// 동시성 충돌
 	RESERVATION_NOT_AVAILABLE("다른 예약이 선점되었습니다.", HttpStatus.CONFLICT),
+	RESERVATION_CONCURRENCY_ERROR("현재 예약 요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해주세요.", HttpStatus.CONFLICT),
 
 	// 500 Internal Server Error
 	INTERNAL_SERVER_ERROR("서버 내부 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
