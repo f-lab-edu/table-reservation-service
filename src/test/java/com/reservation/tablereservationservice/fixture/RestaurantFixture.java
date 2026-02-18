@@ -16,8 +16,8 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class RestaurantFixture {
 
-	private Long restaurantId = 100L;
-	private String name = "맛집A";
+	private Long restaurantId = null;
+	private String name = "강남 한상";
 	private RegionCode regionCode = RegionCode.RG01;
 	private CategoryCode categoryCode = CategoryCode.CT01;
 	private String address = "서울 강남";
@@ -28,13 +28,17 @@ public class RestaurantFixture {
 	}
 
 	public Restaurant build() {
-		return Restaurant.builder()
-			.restaurantId(restaurantId)
+		Restaurant.RestaurantBuilder builder = Restaurant.builder()
 			.name(name)
 			.regionCode(regionCode)
 			.categoryCode(categoryCode)
 			.address(address)
-			.ownerId(ownerId)
-			.build();
+			.ownerId(ownerId);
+
+		if (restaurantId != null) {
+			builder.restaurantId(restaurantId);
+		}
+
+		return builder.build();
 	}
 }

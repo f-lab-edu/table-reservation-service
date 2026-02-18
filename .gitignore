@@ -39,3 +39,5 @@ out/
 # Spring Boot environment-specific configs
 application-*.yml
 !application.yml
+
+.env

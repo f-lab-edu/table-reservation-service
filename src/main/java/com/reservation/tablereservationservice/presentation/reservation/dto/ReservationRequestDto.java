@@ -12,6 +12,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public class ReservationRequestDto {
 
+	private String requestId;
+
 	@NotNull(message = "slotId는 필수입니다.")
 	private Long slotId;
 

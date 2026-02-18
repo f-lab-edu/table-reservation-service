@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.util.Optional;
 
 public interface ReservationRepository {
 
@@ -27,6 +28,12 @@ public interface ReservationRepository {
 		LocalDateTime to,
 		Pageable pageable
 	);
+
+	Optional<Reservation> findById(Long reservationId);
+
+	Reservation fetchById(Long reservationId);
+
+	void updateStatus(Reservation reservation);
 
 	void deleteAll();
 }

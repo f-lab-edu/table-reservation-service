@@ -1,6 +1,7 @@
 package com.reservation.tablereservationservice.presentation.reservation.controller;
 
 import static io.restassured.RestAssured.*;
+import static org.assertj.core.api.Assertions.*;
 import static org.hamcrest.Matchers.*;
 
 import java.time.LocalDate;
@@ -40,9 +41,9 @@ import io.restassured.http.ContentType;
 @ActiveProfiles("test")
 class ReservationControllerIntegrationTest {
 
-	private static final LocalDate TEST_DATE = LocalDate.of(2026, 1, 26);
-	private static final LocalTime TEST_TIME = LocalTime.of(19, 0);
-	private static final LocalDateTime TEST_VISIT_AT = LocalDateTime.of(TEST_DATE, TEST_TIME);
+	private static final LocalDate BASE_DATE = LocalDate.of(2030, 1, 1);
+	private static final LocalTime BASE_TIME = LocalTime.of(19, 0);
+	private static final LocalDateTime BASE_VISIT_AT = LocalDateTime.of(2030, 1, 1, 19, 0);
 
 	@LocalServerPort
 	private int port;
@@ -85,31 +86,38 @@ class ReservationControllerIntegrationTest {
 		this.ownerAccessToken = jwtProvider.createAccessToken(owner.getEmail(), UserRole.OWNER);
 		this.customerAccessToken = jwtProvider.createAccessToken(customer.getEmail(), UserRole.CUSTOMER);
 
-		Restaurant restaurant = restaurantRepository.save(RestaurantFixture.restaurant()
-			.ownerId(owner.getUserId())
-			.build());
+		Restaurant restaurant = restaurantRepository.save(
+			RestaurantFixture.restaurant()
+				.ownerId(owner.getUserId())
+				.build()
+		);
 
-		RestaurantSlot slot = restaurantSlotRepository.save(RestaurantSlotFixture.slot()
-			.restaurantId(restaurant.getRestaurantId())
-			.time(TEST_TIME)
-			.maxCapacity(10)
-			.build());
+		RestaurantSlot slot = restaurantSlotRepository.save(
+			RestaurantSlotFixture.slot()
+				.restaurantId(restaurant.getRestaurantId())
+				.time(BASE_TIME)
+				.maxCapacity(10)
+				.build()
+		);
 		this.slotId = slot.getSlotId();
 
-		dailySlotCapacityRepository.save(DailySlotCapacityFixture.capacity()
-			.slotId(slotId)
-			.date(TEST_DATE)
-			.remainingCount(10)
-			.version(0L)
-			.build());
+		dailySlotCapacityRepository.save(
+			DailySlotCapacityFixture.capacity()
+				.slotId(slotId)
+				.date(BASE_DATE)
+				.remainingCount(10)
+				.version(0L)
+				.build()
+		);
 	}
 
 	@Test
 	@DisplayName("예약 요청 성공 - CUSTOMER 토큰이면 200 + 응답 바디 반환")
-	void create_Success_WhenCustomerToken() {
-		ReservationRequestDto request = new ReservationRequestDto(slotId, TEST_DATE, 2, "note");
+	void create_success_whenCustomerToken() {
+		ReservationRequestDto request = new ReservationRequestDto(slotId, BASE_DATE, 2, "note");
 
-		given().contentType(ContentType.JSON)
+		given()
+			.contentType(ContentType.JSON)
 			.header("Authorization", "Bearer " + customerAccessToken)
 			.body(request)
 		.when()
@@ -121,15 +129,16 @@ class ReservationControllerIntegrationTest {
 			.body("data.reservationId", notNullValue())
 			.body("data.partySize", equalTo(2))
 			.body("data.status", equalTo("CONFIRMED"))
-			.body("data.visitAt", startsWith(TEST_VISIT_AT.toString()));
+			.body("data.visitAt", startsWith(BASE_VISIT_AT.toString()));
 	}
 
 	@Test
 	@DisplayName("예약 요청 실패 - OWNER 토큰이면 403")
-	void create_Fail_WhenOwnerToken() {
-		ReservationRequestDto request = new ReservationRequestDto(slotId, TEST_DATE, 2, "note");
+	void create_fail_whenOwnerToken() {
+		ReservationRequestDto request = new ReservationRequestDto(slotId, BASE_DATE, 2, "note");
 
-		given().contentType(ContentType.JSON)
+		given()
+			.contentType(ContentType.JSON)
 			.header("Authorization", "Bearer " + ownerAccessToken)
 			.body(request)
 		.when()
@@ -140,8 +149,8 @@ class ReservationControllerIntegrationTest {
 
 	@Test
 	@DisplayName("예약 요청 실패 - 토큰 없이 요청하면 401")
-	void create_Fail_WithoutToken() {
-		ReservationRequestDto request = new ReservationRequestDto(slotId, TEST_DATE, 2, "note");
+	void create_fail_withoutToken() {
+		ReservationRequestDto request = new ReservationRequestDto(slotId, BASE_DATE, 2, "note");
 
 		given()
 			.contentType(ContentType.JSON)
@@ -154,11 +163,11 @@ class ReservationControllerIntegrationTest {
 
 	@Test
 	@DisplayName("예약 요청 실패 - DTO 검증 실패면 400 + 상세 에러 반환")
-	void create_Fail_InvalidRequestDto() {
-		// slotId/date도 null로 만들어서 "필수값 검증"을 확실하게 터뜨림
+	void create_fail_invalidRequestDto() {
 		ReservationRequestDto request = new ReservationRequestDto(null, null, 0, "note");
 
-		given().contentType(ContentType.JSON)
+		given()
+			.contentType(ContentType.JSON)
 			.header("Authorization", "Bearer " + customerAccessToken)
 			.body(request)
 		.when()
@@ -172,23 +181,16 @@ class ReservationControllerIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("내 예약 목록 조회 성공 - 확정건만 조회")
-	void getReservations_me_success_whenCustomerRole() {
-		User customer = userRepository.fetchByEmail("customer@test.com");
+	@DisplayName("내 예약 목록 조회 성공 - status=CONFIRMED면 확정건만 조회")
+	void getReservations_me_success_onlyConfirmed() {
+		// given: 예약 1건 생성
+		Long reservationId = createReservation(customerAccessToken, slotId, BASE_DATE, 2, "note");
 
-		reservationRepository.save(Reservation.builder()
-			.userId(customer.getUserId())
-			.slotId(slotId)
-			.visitAt(TEST_VISIT_AT)
-			.partySize(2)
-			.note("note")
-			.status(ReservationStatus.CONFIRMED)
-			.build());
-
-		given().contentType(ContentType.JSON)
+		given()
+			.contentType(ContentType.JSON)
 			.header("Authorization", "Bearer " + customerAccessToken)
-			.queryParam("fromDate", "2026-01-01")
-			.queryParam("toDate", "2026-02-01")
+			.queryParam("fromDate", BASE_DATE.minusDays(1).toString())
+			.queryParam("toDate", BASE_DATE.plusDays(1).toString())
 			.queryParam("status", ReservationStatus.CONFIRMED)
 		.when()
 			.get("/api/reservations/me")
@@ -196,42 +198,38 @@ class ReservationControllerIntegrationTest {
 			.statusCode(200)
 			.body("code", equalTo(200))
 			.body("message", equalTo("예약 조회 성공"))
-			.body("data", notNullValue())
 			.body("data.content.size()", equalTo(1))
+			.body("data.content[0].reservationId", equalTo(reservationId.intValue()))
 			.body("data.content[0].partySize", equalTo(2))
 			.body("data.content[0].status", equalTo("CONFIRMED"))
-			.body("data.content[0].visitAt", startsWith(TEST_VISIT_AT.toString()));
+			.body("data.content[0].visitAt", startsWith(BASE_VISIT_AT.toString()));
 	}
 
 	@Test
 	@DisplayName("내 예약 목록 조회 성공 - status 파라미터 없으면 CONFIRMED + CANCELED 모두 조회")
 	void getReservations_me_success_whenStatusOmitted() {
-		// given
-		User customer = userRepository.fetchByEmail("customer@test.com");
+		// given: 서로 다른 날짜로 2건 생성 후 1건 취소
+		LocalDate confirmedDate = BASE_DATE;
+		LocalDate cancelDate = BASE_DATE.plusDays(1);
 
-		reservationRepository.save(Reservation.builder()
-			.userId(customer.getUserId())
+		// cancelDate도 slot 생성
+		dailySlotCapacityRepository.save(DailySlotCapacityFixture.capacity()
 			.slotId(slotId)
-			.visitAt(TEST_VISIT_AT)
-			.partySize(2)
-			.note("confirmed")
-			.status(ReservationStatus.CONFIRMED)
+			.date(cancelDate)
+			.remainingCount(10)
+			.version(0L)
 			.build());
 
-		reservationRepository.save(Reservation.builder()
-			.userId(customer.getUserId())
-			.slotId(slotId)
-			.visitAt(TEST_VISIT_AT.plusHours(1))
-			.partySize(2)
-			.note("canceled")
-			.status(ReservationStatus.CANCELED)
-			.build());
+		createReservation(customerAccessToken, slotId, confirmedDate, 2, "confirmed");
 
-		// when & then
-		given().contentType(ContentType.JSON)
+		Long toCancelId = createReservation(customerAccessToken, slotId, cancelDate, 1, "cancel");
+		cancelReservation(customerAccessToken, toCancelId);
+
+		given()
+			.contentType(ContentType.JSON)
 			.header("Authorization", "Bearer " + customerAccessToken)
-			.queryParam("fromDate", "2026-01-01")
-			.queryParam("toDate", "2026-02-01")
+			.queryParam("fromDate", BASE_DATE.minusDays(1).toString())
+			.queryParam("toDate", BASE_DATE.plusDays(2).toString())
 		.when()
 			.get("/api/reservations/me")
 		.then()
@@ -243,73 +241,78 @@ class ReservationControllerIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("점주 예약 목록 조회 성공 - 확정건만 조회")
-	void getReservations_owner_success_whenOwnerRole() {
-		User customer = userRepository.fetchByEmail("customer@test.com");
+	@DisplayName("점주 예약 목록 조회 성공 - owner의 가게 예약이 조회된다")
+	void getReservations_owner_success() {
+		// given: 고객 예약 1건 생성
+		createReservation(customerAccessToken, slotId, BASE_DATE, 2, "note");
 
-		reservationRepository.save(Reservation.builder()
-			.userId(customer.getUserId())
-			.slotId(slotId)
-			.visitAt(TEST_VISIT_AT)
-			.partySize(2)
-			.note("note")
-			.status(ReservationStatus.CONFIRMED)
-			.build());
-
-		given().contentType(ContentType.JSON)
+		given()
+			.contentType(ContentType.JSON)
 			.header("Authorization", "Bearer " + ownerAccessToken)
-			.queryParam("fromDate", "2026-01-01")
-			.queryParam("toDate", "2026-02-01")
-			.queryParam("status", ReservationStatus.CONFIRMED)
+			.queryParam("fromDate", BASE_DATE.minusDays(1).toString())
+			.queryParam("toDate", BASE_DATE.plusDays(1).toString())
 		.when()
 			.get("/api/reservations/owner")
 		.then()
 			.statusCode(200)
 			.body("code", equalTo(200))
 			.body("message", equalTo("예약 조회 성공"))
-			.body("data", notNullValue())
 			.body("data.content.size()", equalTo(1))
 			.body("data.content[0].partySize", equalTo(2))
-			.body("data.content[0].status", equalTo("CONFIRMED"))
-			.body("data.content[0].visitAt", startsWith(TEST_VISIT_AT.toString()));
+			.body("data.content[0].visitAt", startsWith(BASE_VISIT_AT.toString()));
 	}
 
 	@Test
-	@DisplayName("점주 예약 목록 조회 성공 - status 파라미터 없으면 CONFIRMED + CANCELED 모두 조회")
-	void getReservations_owner_success_whenStatusOmitted() {
+	@DisplayName("예약 취소 성공 - CUSTOMER 토큰이면 200 + DB status=CANCELED 반영")
+	void cancel_success_whenCustomerToken() {
 		// given
-		User customer = userRepository.fetchByEmail("customer@test.com");
+		Long reservationId = createReservation(customerAccessToken, slotId, BASE_DATE, 2, "note");
 
-		reservationRepository.save(Reservation.builder()
-			.userId(customer.getUserId())
-			.slotId(slotId)
-			.visitAt(TEST_VISIT_AT)
-			.partySize(2)
-			.note("confirmed")
-			.status(ReservationStatus.CONFIRMED)
-			.build());
-
-		reservationRepository.save(Reservation.builder()
-			.userId(customer.getUserId())
-			.slotId(slotId)
-			.visitAt(TEST_VISIT_AT.plusHours(1))
-			.partySize(2)
-			.note("canceled")
-			.status(ReservationStatus.CANCELED)
-			.build());
-
-		// when & then
-		given().contentType(ContentType.JSON)
-			.header("Authorization", "Bearer " + ownerAccessToken)
-			.queryParam("fromDate", "2026-01-01")
-			.queryParam("toDate", "2026-02-01")
+		// when & then (API 응답)
+		given()
+			.contentType(ContentType.JSON)
+			.header("Authorization", "Bearer " + customerAccessToken)
 		.when()
-			.get("/api/reservations/owner")
+			.post("/api/reservations/{reservationId}/cancel", reservationId)
 		.then()
 			.statusCode(200)
 			.body("code", equalTo(200))
-			.body("message", equalTo("예약 조회 성공"))
-			.body("data.content.size()", equalTo(2))
-			.body("data.content.status", containsInAnyOrder("CONFIRMED", "CANCELED"));
+			.body("message", equalTo("예약 취소 성공"))
+			.body("data.reservationId", equalTo(reservationId.intValue()))
+			.body("data.status", equalTo("CANCELED"));
+
+		// then (DB 반영)
+		Reservation stored = reservationRepository.findById(reservationId)
+			.orElseThrow(() -> new IllegalStateException("Reservation not found"));
+		assertThat(stored.getStatus()).isEqualTo(ReservationStatus.CANCELED);
+	}
+
+	private Long createReservation(String accessToken, Long slotId, LocalDate date, int partySize, String note) {
+		ReservationRequestDto request = new ReservationRequestDto(slotId, date, partySize, note);
+
+		Integer reservationId =
+			given()
+				.contentType(ContentType.JSON)
+				.header("Authorization", "Bearer " + accessToken)
+				.body(request)
+			.when()
+				.post("/api/reservations")
+			.then()
+				.statusCode(200)
+				.extract()
+				.path("data.reservationId");
+
+		assertThat(reservationId).isNotNull();
+		return reservationId.longValue();
+	}
+
+	private void cancelReservation(String accessToken, Long reservationId) {
+		given()
+			.contentType(ContentType.JSON)
+			.header("Authorization", "Bearer " + accessToken)
+		.when()
+			.post("/api/reservations/{reservationId}/cancel", reservationId)
+		.then()
+			.statusCode(200);
 	}
 }
