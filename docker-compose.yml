@@ -1,31 +1,61 @@
+version: '3.7'
 name: table-reservation-service
 
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: trs-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: table-reservation-service
+  spring:
+    container_name: spring
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "1.0"
+          memory: 1024M
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "3307:3306"
-    volumes:
-      - ./db/mysql/data:/var/lib/mysql
-      - ./db/mysql/init:/docker-entrypoint-initdb.d
-    mem_limit: 1g
-    cpus: 1.0
-
-  app:
-    build: .
-    container_name: trs-app
+      - "8080:8080"
     depends_on:
       - mysql
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/table-reservation-service?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/table-reservation-service?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    ports:
-      - "8080:8080"
-    mem_limit: 1g
-    cpus: 1.0
 
+  mysql:
+    image: mysql:8.4
+    container_name: mysql
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "1.0"
+          memory: 1024M
+    restart: always
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: table-reservation-service
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./db/mysql/data:/var/lib/mysql
+      - ./db/mysql/init:/docker-entrypoint-initdb.d
+
+  mysql-exporter:
+    container_name: mysql-exporter
+    image: prom/mysqld-exporter:latest
+    depends_on:
+      - mysql
+    restart: always
+    environment:
+      DATA_SOURCE_NAME: root:${MYSQL_ROOT_PASSWORD}@(mysql:3306)/
+    ports:
+      - "9104:9104"
