@@ -1,0 +1,11 @@
+version: '3.7'
+services:
+  k6:
+    image: grafana/k6:latest
+    container_name: k6
+    ports:
+      - "6565:6565"
+    volumes:
+      - ./:/scripts
+    command: run /scripts/reservation_fcfs_burst.js
+    network_mode: host
