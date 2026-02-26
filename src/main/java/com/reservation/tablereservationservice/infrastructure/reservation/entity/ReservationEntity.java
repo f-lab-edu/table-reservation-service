@@ -56,22 +56,18 @@ public class ReservationEntity extends BaseTimeEntity {
 	private ReservationStatus status;
 
 	@Column(nullable = false)
-	private String requestId;
-
-	@Column(nullable = false)
-	private long serverReceivedSeq;
+	private long processingOrder;
 
 	@Builder
 	public ReservationEntity(Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
-		String note, ReservationStatus status, String requestId, long serverReceivedSeq) {
+		String note, ReservationStatus status, long processingOrder) {
 		this.userId = userId;
 		this.slotId = slotId;
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.note = note;
 		this.status = status;
-		this.requestId = requestId;
-		this.serverReceivedSeq = serverReceivedSeq;
+		this.processingOrder = processingOrder;
 	}
 
 	public void updateStatus(ReservationStatus status) {

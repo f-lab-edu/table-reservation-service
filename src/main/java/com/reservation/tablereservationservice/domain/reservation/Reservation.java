@@ -15,12 +15,11 @@ public class Reservation {
 	private Integer partySize;
 	private String note;
 	private ReservationStatus status;
-	private String requestId;
-	private long serverReceivedSeq;
+	private long processingOrder;
 
 	@Builder
 	public Reservation(Long reservationId, Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
-		String note, ReservationStatus status, String requestId, long serverReceivedSeq
+		String note, ReservationStatus status, long processingOrder
 	) {
 		this.reservationId = reservationId;
 		this.userId = userId;
@@ -29,8 +28,7 @@ public class Reservation {
 		this.partySize = partySize;
 		this.note = note;
 		this.status = status;
-		this.requestId = requestId;
-		this.serverReceivedSeq = serverReceivedSeq;
+		this.processingOrder = processingOrder;
 	}
 
 	public boolean isOwner(Long userId) {
