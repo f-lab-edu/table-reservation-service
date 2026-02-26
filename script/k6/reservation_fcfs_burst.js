@@ -34,14 +34,12 @@ function getTestDate() {
 export default function () {
   const userIndex = __VU; // 1..100
   const userEmail = `customer${userIndex}@test.com`;
-  const requestId = `req-${userIndex}-${Date.now()}`;
 
   const payload = JSON.stringify({
     slotId: SLOT_ID,
     date: getTestDate(),
     partySize: PARTY_SIZE,
     note: 'optimistic-lock-test',
-    requestId: requestId,
   });
 
   const params = {

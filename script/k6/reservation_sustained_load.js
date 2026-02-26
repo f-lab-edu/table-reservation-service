@@ -35,14 +35,11 @@ export default function () {
   const userIndex = __VU; // 1..100
   const userEmail = `customer${userIndex}@test.com`;
 
-  const requestId = `req-${userIndex}-${__ITER}-${Date.now()}`;
-
   const payload = JSON.stringify({
     slotId: SLOT_ID,
     date: getLoadTestDate(),
     partySize: PARTY_SIZE,
     note: 'pessimistic-lock-sustained-rolling-date',
-    requestId: requestId,
   });
 
   const params = {
