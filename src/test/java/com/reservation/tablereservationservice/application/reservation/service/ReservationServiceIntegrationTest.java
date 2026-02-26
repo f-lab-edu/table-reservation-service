@@ -410,10 +410,9 @@ class ReservationServiceIntegrationTest {
 		Long slotId = restaurantSlot.getSlotId();
 		int partySize = 2;
 
-		// visitAt이 현재로부터 24시간 이내면 취소 불가
-		LocalDateTime now = LocalDateTime.now();
-		LocalDateTime visitAt = now.plusHours(23);
-		LocalDate date = visitAt.toLocalDate();
+		// 오늘 날짜로 설정 → visitAt = 오늘 19:00, deadline = 어제 19:00
+		// now가 어느 시각이든 deadline은 항상 지난 상태
+		LocalDate date = LocalDate.now();
 
 		saveCapacity(slotId, date, 8);
 
@@ -426,6 +425,38 @@ class ReservationServiceIntegrationTest {
 			.isInstanceOf(ReservationException.class)
 			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 				.isEqualTo(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED));
+	}
+
+	@Test
+	@DisplayName("취소 후 재예약 성공 - 취소된 예약의 슬롯을 동일 날짜로 재예약 가능")
+	void cancel_then_rebook_success() {
+		// given
+		Long slotId = restaurantSlot.getSlotId();
+		LocalDate visitDate = BASE_DATE;
+
+		saveCapacity(slotId, visitDate, 10);
+
+		Reservation first = reservationService.create(
+			customer.getEmail(),
+			createReservationRequest(slotId, visitDate, 2, "first"));
+
+		// 취소 → capacity 복구 (10 - 2 + 2 = 10)
+		reservationService.cancel(customer.getEmail(), first.getReservationId());
+
+		// when: 동일 슬롯, 동일 날짜 재예약
+		Reservation rebooked = reservationService.create(
+			customer.getEmail(),
+			createReservationRequest(slotId, visitDate, 2, "rebook"));
+
+		// then
+		assertThat(rebooked.getReservationId()).isNotEqualTo(first.getReservationId());
+		assertThat(rebooked.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+
+		// capacity: 10 → -2(예약) → +2(취소) → -2(재예약) = 8
+		DailySlotCapacity afterRebook = dailySlotCapacityRepository
+			.findBySlotIdAndDate(slotId, visitDate)
+			.orElseThrow(() -> new IllegalStateException("DailySlotCapacity not found"));
+		assertThat(afterRebook.getRemainingCount()).isEqualTo(8);
 	}
 
 	private void saveCapacity(Long slotId, LocalDate date, int remainingCount) {
