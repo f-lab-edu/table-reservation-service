@@ -1,7 +1,6 @@
 package com.reservation.tablereservationservice.application.reservation.facade;
 
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.retry.RetryContext;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
@@ -25,7 +24,7 @@ public class ReservationOptimisticFacade {
 	private final ReservationService reservationService;
 
 	@Retryable(
-		retryFor = {OptimisticLockingFailureException.class, ObjectOptimisticLockingFailureException.class},
+		retryFor = OptimisticLockingFailureException.class,
 		maxAttempts = 3,
 		backoff = @Backoff(delay = 20, multiplier = 2.0, maxDelay = 200, random = true)
 	)

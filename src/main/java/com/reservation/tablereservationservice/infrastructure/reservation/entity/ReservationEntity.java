@@ -13,22 +13,14 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
-@Table(
-	name = "reservation",
-	uniqueConstraints = {
-		@UniqueConstraint(
-			name = "uq_user_visit_at",
-			columnNames = {"user_id", "visit_at"}
-		)
-	}
-)
+@Table(name = "reservation")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 
 public class ReservationEntity extends BaseTimeEntity {
@@ -54,6 +46,9 @@ public class ReservationEntity extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private ReservationStatus status;
+
+	@Version
+	private Long version;
 
 	@Column(nullable = false)
 	private long processingOrder;
