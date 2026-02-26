@@ -1,6 +1,5 @@
 package com.reservation.tablereservationservice.presentation.reservation.controller;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -20,7 +19,6 @@ import com.reservation.tablereservationservice.global.annotation.CustomerOnly;
 import com.reservation.tablereservationservice.global.annotation.LoginUser;
 import com.reservation.tablereservationservice.global.annotation.OwnerOnly;
 import com.reservation.tablereservationservice.global.common.CurrentUser;
-import com.reservation.tablereservationservice.global.request.RequestSequenceGenerator;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
@@ -38,7 +36,6 @@ public class ReservationController {
 
 	private final ReservationService reservationService;
 	private final ReservationOptimisticFacade reservationOptimisticFacade;
-	private final RequestSequenceGenerator sequenceGenerator;
 
 	@CustomerOnly
 	@PostMapping
@@ -53,17 +50,12 @@ public class ReservationController {
 	}
 
 	@PostMapping("/test")
-	public ApiResponse<ReservationResponseDto> create_test(
+	public ApiResponse<Void> create_test(
 		@Valid @RequestBody ReservationRequestDto requestDto,
 		@RequestHeader("X-User-Email") String email
 	) {
-
-		long serverReceivedSeq = sequenceGenerator.next();
-
-		Reservation reservation = reservationOptimisticFacade.createWithRetry(email, requestDto, serverReceivedSeq);
-		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
-
-		return ApiResponse.success("예약 요청 성공", responseDto);
+		reservationService.submitReservation(email, requestDto);
+		return ApiResponse.success("예약 요청 접수");
 	}
 
 	@CustomerOnly
@@ -104,7 +96,7 @@ public class ReservationController {
 	@CustomerOnly
 	@PostMapping("/{reservationId}/cancel")
 	public ApiResponse<ReservationResponseDto> cancel(@PathVariable Long reservationId, @LoginUser CurrentUser user) {
-		Reservation reservation = reservationService.cancel(user.email(), reservationId);
+		Reservation reservation = reservationOptimisticFacade.cancelWithRetry(user.email(), reservationId);
 		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
 
 		return ApiResponse.success("예약 취소 성공", responseDto);
