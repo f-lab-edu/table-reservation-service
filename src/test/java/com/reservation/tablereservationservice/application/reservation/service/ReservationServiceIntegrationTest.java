@@ -3,7 +3,6 @@ package com.reservation.tablereservationservice.application.reservation.service;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 import org.junit.jupiter.api.BeforeEach;
