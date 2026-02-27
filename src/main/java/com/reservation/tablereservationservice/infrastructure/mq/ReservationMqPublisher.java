@@ -18,10 +18,7 @@ public class ReservationMqPublisher {
 	public void publish(ReservationRequestMessage message) {
 		log.info("[RESERVATION_MQ_PUBLISH] email={}, slotId={}", message.userEmail(), message.slotId());
 
-		rabbitTemplate.convertAndSend(
-			RESERVATION_EXCHANGE,
-			RESERVATION_REQUEST_ROUTING_KEY,
-			message
-		);
+		// 라우팅 키로 slotId 사용 → 동일 slotId의 예약 요청이 동일 파티션 큐에 직렬 전달
+		rabbitTemplate.convertAndSend(RESERVATION_EXCHANGE, String.valueOf(message.slotId()), message);
 	}
 }
