@@ -7,5 +7,5 @@ services:
       - "6565:6565"
     volumes:
       - ./:/scripts
-    command: run /scripts/reservation_fcfs_burst.js
+    command: run /scripts/reservation_sustained_load.js
     network_mode: host

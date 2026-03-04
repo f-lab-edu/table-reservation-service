@@ -41,3 +41,6 @@ application-*.yml
 !application.yml
 
 .env
+
+db/mysql/data/
+.my.cnf

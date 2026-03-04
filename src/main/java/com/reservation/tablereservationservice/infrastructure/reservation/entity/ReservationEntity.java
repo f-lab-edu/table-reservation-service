@@ -13,22 +13,14 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
-@Table(
-	name = "reservation",
-	uniqueConstraints = {
-		@UniqueConstraint(
-			name = "uq_user_visit_at",
-			columnNames = {"user_id", "visit_at"}
-		)
-	}
-)
+@Table(name = "reservation")
 @NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 
 public class ReservationEntity extends BaseTimeEntity {
@@ -55,23 +47,22 @@ public class ReservationEntity extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private ReservationStatus status;
 
-	@Column(nullable = false)
-	private String requestId;
+	@Version
+	private Long version;
 
 	@Column(nullable = false)
-	private long serverReceivedSeq;
+	private long processingOrder;
 
 	@Builder
 	public ReservationEntity(Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
-		String note, ReservationStatus status, String requestId, long serverReceivedSeq) {
+		String note, ReservationStatus status, long processingOrder) {
 		this.userId = userId;
 		this.slotId = slotId;
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.note = note;
 		this.status = status;
-		this.requestId = requestId;
-		this.serverReceivedSeq = serverReceivedSeq;
+		this.processingOrder = processingOrder;
 	}
 
 	public void updateStatus(ReservationStatus status) {

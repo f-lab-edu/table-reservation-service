@@ -26,6 +26,8 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.infrastructure.mq.ReservationMqPublisher;
+import com.reservation.tablereservationservice.infrastructure.mq.ReservationRequestMessage;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
@@ -44,6 +46,7 @@ public class ReservationService {
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationRepository reservationRepository;
 	private final RestaurantRepository restaurantRepository;
+	private final ReservationMqPublisher reservationMqPublisher;
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
@@ -84,7 +87,7 @@ public class ReservationService {
 
 	// 테스트 전용 오버로딩 메서드
 	@Transactional
-	public Reservation create(String email, ReservationRequestDto requestDto, long serverReceivedSeq) {
+	public Reservation create(String email, ReservationRequestDto requestDto, long processingOrder) {
 		User user = userRepository.fetchByEmail(email);
 
 		RestaurantSlot slot = restaurantSlotRepository.fetchById(requestDto.getSlotId());
@@ -110,8 +113,7 @@ public class ReservationService {
 			.partySize(requestDto.getPartySize())
 			.note(requestDto.getNote())
 			.status(ReservationStatus.CONFIRMED)
-			.requestId(requestDto.getRequestId())
-			.serverReceivedSeq(serverReceivedSeq)
+			.processingOrder(processingOrder)
 			.build();
 
 		try {
@@ -189,6 +191,22 @@ public class ReservationService {
 		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, idToUser);
 
 		return PageResponseDto.from(dtoPage);
+	}
+
+	public void submitReservation(String email, ReservationRequestDto requestDto) {
+		ReservationRequestMessage message = ReservationRequestMessage.from(email, requestDto);
+		log.info("[RESERVATION_SUBMIT] email={}, slotId={}", email, requestDto.getSlotId());
+
+		reservationMqPublisher.publish(message);
+	}
+
+	public void handleReservationRequest(ReservationRequestMessage message, long processingOrder) {
+		log.info(
+			"[RESERVATION_HANDLE] seq={}, email={}, slotId={}",
+			processingOrder, message.userEmail(), message.slotId()
+		);
+
+		create(message.userEmail(), message.toDto(), processingOrder);
 	}
 
 	private Page<ReservationListResponseDto> createReservationListDtoPage(

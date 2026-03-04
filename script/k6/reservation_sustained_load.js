@@ -8,7 +8,8 @@ const failCounter = new Counter('reservation_fail');
 const BASE_URL = 'http://localhost:8080';
 const RESERVE_URL = `${BASE_URL}/api/reservations/test`;
 
-const SLOT_ID = 1;      // slot1 고정
+// VU별로 slotId 1~4 순환 → 4개 파티션 큐에 고르게 분산
+const PARTITION_COUNT = 4;
 const PARTY_SIZE = 1;
 
 export const options = {
@@ -27,22 +28,21 @@ export const options = {
 
 function getLoadTestDate() {
   const d = new Date();
-  d.setDate(d.getDate() + 1 + (__ITER % 7));
+  d.setUTCDate(d.getUTCDate() + 1 + (__ITER % 7));
   return d.toISOString().slice(0, 10);
 }
 
 export default function () {
   const userIndex = __VU; // 1..100
   const userEmail = `customer${userIndex}@test.com`;
-
-  const requestId = `req-${userIndex}-${__ITER}-${Date.now()}`;
+  // 동일 VU는 항상 같은 slotId → 같은 파티션 큐에 직렬 전달
+  const slotId = ((__VU - 1) % PARTITION_COUNT) + 1;
 
   const payload = JSON.stringify({
-    slotId: SLOT_ID,
+    slotId: slotId,
     date: getLoadTestDate(),
     partySize: PARTY_SIZE,
-    note: 'pessimistic-lock-sustained-rolling-date',
-    requestId: requestId,
+    note: `hash-exchange-partition-${slotId}`,
   });
 
   const params = {

@@ -29,23 +29,20 @@ VALUES
 
 
 -- RESTAURANT_SLOT (restaurant_id=1)
+-- slot 1~4: Consistent Hash Exchange 파티션 테스트용 (슬롯마다 다른 파티션 큐로 라우팅)
 INSERT INTO restaurant_slot
 (restaurant_id, time, max_capacity, created_at, modified_at)
 VALUES
-(1, '18:00:00', 10, @now, @now);
+(1, '18:00:00', 10, @now, @now),
+(1, '19:00:00', 10, @now, @now),
+(1, '20:00:00', 10, @now, @now),
+(1, '21:00:00', 10, @now, @now);
 
 
--- 날짜 변수 정의
-SET @fcfs_date := CURDATE();
-SET @load_start_date := DATE_ADD(@fcfs_date, INTERVAL 1 DAY);
+-- k6와 동일하게 UTC_DATE() 기준으로 날짜 계산 (KST/UTC 타임존 불일치 방지)
+SET @load_start_date := DATE_ADD(UTC_DATE(), INTERVAL 1 DAY);
 
--- 정합성 테스트용 (Hot Row 1개, 수량 10개, version 초기값 0)
-INSERT INTO daily_slot_capacity
-(slot_id, date, remaining_count, version, created_at, modified_at)
-VALUES
-(1, @fcfs_date, 10, 0, @now, @now);
-
--- 지속 부하용 (7일치 생성, version 초기값 0)
+-- 지속 부하용 (slot 1~4 각 7일치 생성, version 초기값 0)
 INSERT INTO daily_slot_capacity
 (slot_id, date, remaining_count, version, created_at, modified_at)
 VALUES
@@ -55,4 +52,25 @@ VALUES
 (1, DATE_ADD(@load_start_date, INTERVAL 3 DAY), 10, 0, @now, @now),
 (1, DATE_ADD(@load_start_date, INTERVAL 4 DAY), 10, 0, @now, @now),
 (1, DATE_ADD(@load_start_date, INTERVAL 5 DAY), 10, 0, @now, @now),
-(1, DATE_ADD(@load_start_date, INTERVAL 6 DAY), 10, 0, @now, @now);
+(1, DATE_ADD(@load_start_date, INTERVAL 6 DAY), 10, 0, @now, @now),
+(2, DATE_ADD(@load_start_date, INTERVAL 0 DAY), 10, 0, @now, @now),
+(2, DATE_ADD(@load_start_date, INTERVAL 1 DAY), 10, 0, @now, @now),
+(2, DATE_ADD(@load_start_date, INTERVAL 2 DAY), 10, 0, @now, @now),
+(2, DATE_ADD(@load_start_date, INTERVAL 3 DAY), 10, 0, @now, @now),
+(2, DATE_ADD(@load_start_date, INTERVAL 4 DAY), 10, 0, @now, @now),
+(2, DATE_ADD(@load_start_date, INTERVAL 5 DAY), 10, 0, @now, @now),
+(2, DATE_ADD(@load_start_date, INTERVAL 6 DAY), 10, 0, @now, @now),
+(3, DATE_ADD(@load_start_date, INTERVAL 0 DAY), 10, 0, @now, @now),
+(3, DATE_ADD(@load_start_date, INTERVAL 1 DAY), 10, 0, @now, @now),
+(3, DATE_ADD(@load_start_date, INTERVAL 2 DAY), 10, 0, @now, @now),
+(3, DATE_ADD(@load_start_date, INTERVAL 3 DAY), 10, 0, @now, @now),
+(3, DATE_ADD(@load_start_date, INTERVAL 4 DAY), 10, 0, @now, @now),
+(3, DATE_ADD(@load_start_date, INTERVAL 5 DAY), 10, 0, @now, @now),
+(3, DATE_ADD(@load_start_date, INTERVAL 6 DAY), 10, 0, @now, @now),
+(4, DATE_ADD(@load_start_date, INTERVAL 0 DAY), 10, 0, @now, @now),
+(4, DATE_ADD(@load_start_date, INTERVAL 1 DAY), 10, 0, @now, @now),
+(4, DATE_ADD(@load_start_date, INTERVAL 2 DAY), 10, 0, @now, @now),
+(4, DATE_ADD(@load_start_date, INTERVAL 3 DAY), 10, 0, @now, @now),
+(4, DATE_ADD(@load_start_date, INTERVAL 4 DAY), 10, 0, @now, @now),
+(4, DATE_ADD(@load_start_date, INTERVAL 5 DAY), 10, 0, @now, @now),
+(4, DATE_ADD(@load_start_date, INTERVAL 6 DAY), 10, 0, @now, @now);
