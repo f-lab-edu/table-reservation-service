@@ -26,8 +26,8 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.infrastructure.mq.ReservationMqPublisher;
 import com.reservation.tablereservationservice.infrastructure.mq.ReservationRequestMessage;
+import com.reservation.tablereservationservice.infrastructure.stream.ReservationStreamPublisher;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
@@ -46,7 +46,7 @@ public class ReservationService {
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationRepository reservationRepository;
 	private final RestaurantRepository restaurantRepository;
-	private final ReservationMqPublisher reservationMqPublisher;
+	private final ReservationStreamPublisher reservationStreamPublisher;
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
@@ -197,7 +197,7 @@ public class ReservationService {
 		ReservationRequestMessage message = ReservationRequestMessage.from(email, requestDto);
 		log.info("[RESERVATION_SUBMIT] email={}, slotId={}", email, requestDto.getSlotId());
 
-		reservationMqPublisher.publish(message);
+		reservationStreamPublisher.publish(message);
 	}
 
 	public void handleReservationRequest(ReservationRequestMessage message, long processingOrder) {
