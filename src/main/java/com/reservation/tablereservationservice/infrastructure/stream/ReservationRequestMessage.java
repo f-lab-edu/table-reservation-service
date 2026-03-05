@@ -1,4 +1,4 @@
-package com.reservation.tablereservationservice.infrastructure.mq;
+package com.reservation.tablereservationservice.infrastructure.stream;
 
 import java.time.LocalDate;
 

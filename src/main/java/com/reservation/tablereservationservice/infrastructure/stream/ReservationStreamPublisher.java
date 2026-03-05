@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.infrastructure.mq.ReservationRequestMessage;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;

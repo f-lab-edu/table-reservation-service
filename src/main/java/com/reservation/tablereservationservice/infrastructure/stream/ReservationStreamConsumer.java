@@ -19,7 +19,6 @@ import org.springframework.stereotype.Component;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.util.ProcessingOrderGenerator;
-import com.reservation.tablereservationservice.infrastructure.mq.ReservationRequestMessage;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;

@@ -26,7 +26,7 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.infrastructure.mq.ReservationRequestMessage;
+import com.reservation.tablereservationservice.infrastructure.stream.ReservationRequestMessage;
 import com.reservation.tablereservationservice.infrastructure.stream.ReservationStreamPublisher;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;

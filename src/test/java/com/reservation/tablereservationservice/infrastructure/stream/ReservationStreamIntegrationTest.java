@@ -38,7 +38,6 @@ import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
 import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.infrastructure.mq.ReservationRequestMessage;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 @SpringBootTest
