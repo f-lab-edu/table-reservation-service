@@ -1,9 +1,6 @@
 package com.reservation.tablereservationservice.infrastructure.stream;
 
-import static com.reservation.tablereservationservice.global.config.RedisStreamConfig.*;
-
 import java.time.Duration;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -17,6 +14,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
+import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.util.ProcessingOrderGenerator;
 
@@ -41,6 +39,7 @@ public class ReservationStreamErrorHandler {
 	private final StringRedisTemplate redisTemplate;
 	private final ReservationService reservationService;
 	private final ProcessingOrderGenerator orderGenerator;
+	private final ReservationStreamProperties streamProperties;
 
 	/**
 	 * 1분마다 실행되는 PEL 감시 스케줄러
@@ -53,9 +52,9 @@ public class ReservationStreamErrorHandler {
 	 */
 	@Scheduled(fixedDelay = 60_000)
 	public void reclaimStaleMessages() {
-		for (int i = 1; i <= PARTITION_COUNT; i++) {
-			String streamKey = STREAM_KEY_PREFIX + i;
-			String consumerName = CONSUMER_PREFIX + i;
+		for (int i = 1; i <= streamProperties.getPartitionCount(); i++) {
+			String streamKey = streamProperties.getKeyPrefix() + i;
+			String consumerName = streamProperties.getConsumerPrefix() + i;
 			try {
 				processStaleMessages(streamKey, consumerName);
 			} catch (Exception e) {
@@ -73,7 +72,7 @@ public class ReservationStreamErrorHandler {
 	 */
 	private void processStaleMessages(String streamKey, String consumerName) {
 		PendingMessages pending = redisTemplate.opsForStream()
-			.pending(streamKey, CONSUMER_GROUP, Range.unbounded(), PENDING_BATCH);
+			.pending(streamKey, streamProperties.getConsumerGroup(), Range.unbounded(), PENDING_BATCH);
 
 		if (pending.isEmpty())
 			return;
@@ -113,7 +112,7 @@ public class ReservationStreamErrorHandler {
 	private void reclaimAndReprocess(String streamKey, String consumerName, RecordId recordId, long deliveryCount) {
 		List<MapRecord<String, String, String>> records = (List<MapRecord<String, String, String>>)(List<?>)
 			redisTemplate.opsForStream()
-				.claim(streamKey, CONSUMER_GROUP, consumerName, IDLE_THRESHOLD, recordId);
+				.claim(streamKey, streamProperties.getConsumerGroup(), consumerName, IDLE_THRESHOLD, recordId);
 
 		if (records.isEmpty())
 			return;
@@ -126,7 +125,7 @@ public class ReservationStreamErrorHandler {
 		log.warn("[XCLAIM] 재처리 시도 email={}, slotId={}, deliveryCount={}", email, slotId, deliveryCount);
 
 		try {
-			ReservationRequestMessage message = deserialize(body);
+			ReservationRequestMessage message = ReservationRequestMessage.fromMap(body);
 			reservationService.handleReservationRequest(message, orderGenerator.next());
 
 			ack(streamKey, recordId);
@@ -154,7 +153,7 @@ public class ReservationStreamErrorHandler {
 	private void moveToErrorStream(String streamKey, String consumerName, RecordId recordId, long deliveryCount) {
 		List<MapRecord<String, String, String>> records = (List<MapRecord<String, String, String>>)(List<?>)
 			redisTemplate.opsForStream()
-				.claim(streamKey, CONSUMER_GROUP, consumerName, IDLE_THRESHOLD, recordId);
+				.claim(streamKey, streamProperties.getConsumerGroup(), consumerName, IDLE_THRESHOLD, recordId);
 
 		if (records.isEmpty())
 			return;
@@ -171,28 +170,14 @@ public class ReservationStreamErrorHandler {
 		);
 
 		// Error Stream에 원본 메시지 + 메타데이터 저장
-		Map<String, String> errorEntry = new java.util.HashMap<>(body);
-		errorEntry.put("originalStream", streamKey);
-		errorEntry.put("originalId", recordId.getValue());
-		errorEntry.put("deliveryCount", String.valueOf(deliveryCount));
-		errorEntry.put("failedAt", String.valueOf(System.currentTimeMillis()));
-
-		redisTemplate.opsForStream().add(ERROR_STREAM_KEY, errorEntry);
+		ErrorStreamEntry errorEntry = ErrorStreamEntry.of(body, streamKey, recordId.getValue(), deliveryCount);
+		redisTemplate.opsForStream().add(streamProperties.getErrorStreamKey(), errorEntry.toMap());
 
 		ack(streamKey, recordId);
 	}
 
 	private void ack(String streamKey, RecordId recordId) {
-		redisTemplate.opsForStream().acknowledge(streamKey, CONSUMER_GROUP, recordId);
+		redisTemplate.opsForStream().acknowledge(streamKey, streamProperties.getConsumerGroup(), recordId);
 	}
 
-	private ReservationRequestMessage deserialize(Map<String, String> body) {
-		return new ReservationRequestMessage(
-			body.get("userEmail"),
-			Long.parseLong(body.get("slotId")),
-			LocalDate.parse(body.get("date")),
-			Integer.parseInt(body.get("partySize")),
-			body.get("note")
-		);
-	}
 }

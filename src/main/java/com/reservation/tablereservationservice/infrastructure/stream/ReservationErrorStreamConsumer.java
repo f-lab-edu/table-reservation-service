@@ -1,9 +1,5 @@
 package com.reservation.tablereservationservice.infrastructure.stream;
 
-import static com.reservation.tablereservationservice.global.config.RedisStreamConfig.*;
-
-import java.util.Map;
-
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.data.redis.connection.stream.Consumer;
@@ -13,6 +9,8 @@ import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.stereotype.Component;
+
+import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,12 +28,13 @@ public class ReservationErrorStreamConsumer implements ApplicationRunner {
 
 	private final StreamMessageListenerContainer<String, MapRecord<String, String, String>> listenerContainer;
 	private final StringRedisTemplate redisTemplate;
+	private final ReservationStreamProperties streamProperties;
 
 	@Override
 	public void run(ApplicationArguments args) {
 		listenerContainer.receive(
-			Consumer.from(ERROR_CONSUMER_GROUP, ERROR_CONSUMER_NAME),
-			StreamOffset.create(ERROR_STREAM_KEY, ReadOffset.lastConsumed()),
+			Consumer.from(streamProperties.getErrorConsumerGroup(), streamProperties.getErrorConsumerName()),
+			StreamOffset.create(streamProperties.getErrorStreamKey(), ReadOffset.lastConsumed()),
 			this::handle
 		);
 	}
@@ -54,19 +53,23 @@ public class ReservationErrorStreamConsumer implements ApplicationRunner {
 	 * ACK 없이 종료되면 다음 재시작 시 다시 수신된다 (at-least-once)
 	 */
 	private void handle(MapRecord<String, String, String> record) {
-		Map<String, String> body = record.getValue();
+		ErrorStreamEntry entry = ErrorStreamEntry.fromMap(record.getValue());
 
 		log.error(
 			"[ERROR_STREAM] 기술적 장애로 처리 실패 email={}, slotId={}, date={}, originalStream={}, deliveryCount={}, failedAt={}",
-			body.get("userEmail"),
-			body.get("slotId"),
-			body.get("date"),
-			body.get("originalStream"),
-			body.get("deliveryCount"),
-			body.get("failedAt")
+			entry.userEmail(),
+			entry.slotId(),
+			entry.date(),
+			entry.originalStream(),
+			entry.deliveryCount(),
+			entry.failedAt()
 		);
 
 		// ACK → Error Stream PEL에서 제거 (로그 기록 완료)
-		redisTemplate.opsForStream().acknowledge(ERROR_STREAM_KEY, ERROR_CONSUMER_GROUP, record.getId());
+		redisTemplate.opsForStream().acknowledge(
+			streamProperties.getErrorStreamKey(),
+			streamProperties.getErrorConsumerGroup(),
+			record.getId()
+		);
 	}
 }

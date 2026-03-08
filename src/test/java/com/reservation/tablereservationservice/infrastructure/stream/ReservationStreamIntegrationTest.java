@@ -1,6 +1,5 @@
 package com.reservation.tablereservationservice.infrastructure.stream;
 
-import static com.reservation.tablereservationservice.global.config.RedisStreamConfig.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.*;
 
@@ -36,6 +35,7 @@ import com.reservation.tablereservationservice.fixture.DailySlotCapacityFixture;
 import com.reservation.tablereservationservice.fixture.RestaurantFixture;
 import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
 import com.reservation.tablereservationservice.fixture.UserFixture;
+import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
@@ -84,6 +84,9 @@ class ReservationStreamIntegrationTest {
 	@Autowired
 	private DailySlotCapacityRepository dailySlotCapacityRepository;
 
+	@Autowired
+	private ReservationStreamProperties streamProperties;
+
 	@AfterEach
 	void tearDown() {
 		reservationRepository.deleteAll();
@@ -93,7 +96,7 @@ class ReservationStreamIntegrationTest {
 		userRepository.deleteAll();
 
 		// 테스트 중 설정한 Redis remaining key 전체 삭제
-		Set<String> remainingKeys = redisTemplate.keys(REMAINING_KEY_PREFIX + "*");
+		Set<String> remainingKeys = redisTemplate.keys(streamProperties.getRemainingKeyPrefix() + "*");
 		if (remainingKeys != null && !remainingKeys.isEmpty()) {
 			redisTemplate.delete(remainingKeys);
 		}
@@ -119,7 +122,7 @@ class ReservationStreamIntegrationTest {
 	void publish_좌석없음_예외() {
 		// given: remaining key = "0" (좌석 소진)
 		redisTemplate.opsForValue().set(
-			remainingKey(PUBLISHER_TEST_SLOT_ID, DATE.toString()), "0"
+			streamProperties.remainingKey(PUBLISHER_TEST_SLOT_ID, DATE.toString()), "0"
 		);
 
 		ReservationRequestMessage message = new ReservationRequestMessage(
@@ -138,7 +141,7 @@ class ReservationStreamIntegrationTest {
 	void publish_성공_원자적_DECR_XADD() {
 		// given: remaining = 5
 		redisTemplate.opsForValue().set(
-			remainingKey(PUBLISHER_TEST_SLOT_ID, DATE.toString()), "5"
+			streamProperties.remainingKey(PUBLISHER_TEST_SLOT_ID, DATE.toString()), "5"
 		);
 
 		ReservationRequestMessage message = new ReservationRequestMessage(
@@ -150,12 +153,12 @@ class ReservationStreamIntegrationTest {
 
 		// then 1: remaining이 5 → 4로 차감됨 (DECR 확인)
 		String remaining = redisTemplate.opsForValue().get(
-			remainingKey(PUBLISHER_TEST_SLOT_ID, DATE.toString())
+			streamProperties.remainingKey(PUBLISHER_TEST_SLOT_ID, DATE.toString())
 		);
 		assertThat(remaining).isEqualTo("4");
 
 		// then 2: 해당 파티션 스트림에 메시지가 적재됨 (XADD 확인)
-		String streamKey = resolveStreamKey(PUBLISHER_TEST_SLOT_ID);
+		String streamKey = streamProperties.resolveStreamKey(PUBLISHER_TEST_SLOT_ID);
 		Long streamLen = redisTemplate.opsForStream().size(streamKey);
 		assertThat(streamLen).isGreaterThanOrEqualTo(1L);
 	}
@@ -188,7 +191,7 @@ class ReservationStreamIntegrationTest {
 		);
 
 		redisTemplate.opsForValue().set(
-			remainingKey(slot.getSlotId(), DATE.toString()), "5"
+			streamProperties.remainingKey(slot.getSlotId(), DATE.toString()), "5"
 		);
 
 		// when: submitReservation → Lua 스크립트(DECR + XADD) → 스트림 적재

@@ -1,7 +1,5 @@
 package com.reservation.tablereservationservice.infrastructure.stream;
 
-import static com.reservation.tablereservationservice.global.config.RedisStreamConfig.*;
-
 import java.util.List;
 
 import org.springframework.core.io.ClassPathResource;
@@ -9,6 +7,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
+import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 
@@ -26,6 +25,7 @@ public class ReservationStreamPublisher {
 	private static final String STREAM_MAX_LEN = "10000";
 
 	private final StringRedisTemplate redisTemplate;
+	private final ReservationStreamProperties streamProperties;
 
 	private RedisScript<Long> submitScript;
 
@@ -43,8 +43,8 @@ public class ReservationStreamPublisher {
 	 * @throws ReservationException 좌석 없음 또는 슬롯 미오픈
 	 */
 	public void publish(ReservationRequestMessage message) {
-		String remainingKey = remainingKey(message.slotId(), message.date().toString());
-		String streamKey = resolveStreamKey(message.slotId());
+		String remainingKey = streamProperties.remainingKey(message.slotId(), message.date().toString());
+		String streamKey = streamProperties.resolveStreamKey(message.slotId());
 
 		Long result = redisTemplate.execute(
 			submitScript,

@@ -1,7 +1,5 @@
 package com.reservation.tablereservationservice.infrastructure.stream;
 
-import static com.reservation.tablereservationservice.global.config.RedisStreamConfig.*;
-
 import java.time.LocalDate;
 import java.util.List;
 
@@ -13,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
+import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +24,7 @@ public class RedisRemainingCapacityInitializer implements ApplicationRunner {
 
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final StringRedisTemplate redisTemplate;
+	private final ReservationStreamProperties streamProperties;
 
 	/**
 	 * 앱 시작 시 오늘 이후의 모든 daily_slot_capacity를 Redis에 적재한다.
@@ -35,7 +35,7 @@ public class RedisRemainingCapacityInitializer implements ApplicationRunner {
 		List<DailySlotCapacity> capacities = dailySlotCapacityRepository.findAllFromDate(today);
 
 		for (DailySlotCapacity capacity : capacities) {
-			String key = remainingKey(capacity.getSlotId(), capacity.getDate().toString());
+			String key = streamProperties.remainingKey(capacity.getSlotId(), capacity.getDate().toString());
 			String value = String.valueOf(capacity.getRemainingCount());
 			redisTemplate.opsForValue().set(key, value);
 		}

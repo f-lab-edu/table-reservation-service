@@ -1,8 +1,5 @@
 package com.reservation.tablereservationservice.infrastructure.stream;
 
-import static com.reservation.tablereservationservice.global.config.RedisStreamConfig.*;
-
-import java.time.LocalDate;
 import java.util.Map;
 
 import org.springframework.boot.ApplicationArguments;
@@ -17,6 +14,7 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.stereotype.Component;
 
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
+import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.util.ProcessingOrderGenerator;
 
@@ -38,6 +36,7 @@ public class ReservationStreamConsumer implements ApplicationRunner {
 	private final ProcessingOrderGenerator orderGenerator;
 	private final StringRedisTemplate redisTemplate;
 	private final MeterRegistry meterRegistry;
+	private final ReservationStreamProperties streamProperties;
 
 	private Counter successCounter;
 	private Counter rejectedCounter;
@@ -67,18 +66,18 @@ public class ReservationStreamConsumer implements ApplicationRunner {
 	}
 
 	/**
-	 * 앱 시작 시 4개 파티션 스트림 구독 등록 후 컨테이너 시작
+	 * 앱 시작 시 파티션 스트림 구독 등록 후 컨테이너 시작
 	 * ReadOffset.lastConsumed(): Consumer Group이 마지막으로 ACK 한 메시지 ID 이후부터 읽는다.
 	 *   재시작 전 ACK 못한 메시지(PEL)는 ReservationStreamErrorHandler가 처리한다.
 	 */
 	@Override
 	public void run(ApplicationArguments args) {
-		for (int i = 1; i <= PARTITION_COUNT; i++) {
-			String streamKey = STREAM_KEY_PREFIX + i;
-			String consumerName = CONSUMER_PREFIX + i;
+		for (int i = 1; i <= streamProperties.getPartitionCount(); i++) {
+			String streamKey = streamProperties.getKeyPrefix() + i;
+			String consumerName = streamProperties.getConsumerPrefix() + i;
 
 			listenerContainer.receive(
-				Consumer.from(CONSUMER_GROUP, consumerName),
+				Consumer.from(streamProperties.getConsumerGroup(), consumerName),
 				StreamOffset.create(streamKey, ReadOffset.lastConsumed()),
 				this::process
 			);
@@ -86,7 +85,7 @@ public class ReservationStreamConsumer implements ApplicationRunner {
 
 		// 구독 등록 완료 후 폴링 시작
 		listenerContainer.start();
-		log.info("[StreamConsumer] 4개 파티션 스트림 구독 시작");
+		log.info("[StreamConsumer] {}개 파티션 스트림 구독 시작", streamProperties.getPartitionCount());
 	}
 
 	private void process(MapRecord<String, String, String> record) {
@@ -99,7 +98,7 @@ public class ReservationStreamConsumer implements ApplicationRunner {
 
 		consumerTimer.record(() -> {
 			try {
-				ReservationRequestMessage message = deserialize(body);
+				ReservationRequestMessage message = ReservationRequestMessage.fromMap(body);
 				reservationService.handleReservationRequest(message, processingOrder);
 
 				// 처리 성공 → XACK 전송 → PEL 에서 제거
@@ -133,16 +132,7 @@ public class ReservationStreamConsumer implements ApplicationRunner {
 	 * ACK를 받은 Redis는 해당 메시지를 PEL에서 제거한다.
 	 */
 	private void ack(MapRecord<String, String, String> record) {
-		redisTemplate.opsForStream().acknowledge(record.getStream(), CONSUMER_GROUP, record.getId());
+		redisTemplate.opsForStream().acknowledge(record.getStream(), streamProperties.getConsumerGroup(), record.getId());
 	}
 
-	private ReservationRequestMessage deserialize(Map<String, String> body) {
-		return new ReservationRequestMessage(
-			body.get("userEmail"),
-			Long.parseLong(body.get("slotId")),
-			LocalDate.parse(body.get("date")),
-			Integer.parseInt(body.get("partySize")),
-			body.get("note")
-		);
-	}
 }
