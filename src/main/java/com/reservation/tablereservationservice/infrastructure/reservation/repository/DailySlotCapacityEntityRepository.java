@@ -1,6 +1,7 @@
 package com.reservation.tablereservationservice.infrastructure.reservation.repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +16,8 @@ import jakarta.persistence.LockModeType;
 public interface DailySlotCapacityEntityRepository extends JpaRepository<DailySlotCapacityEntity, Long> {
 
 	Optional<DailySlotCapacityEntity> findBySlotIdAndDate(Long slotSlotId, LocalDate date);
+
+	List<DailySlotCapacityEntity> findAllByDateGreaterThanEqual(LocalDate date);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from DailySlotCapacityEntity d where d.slotId = :slotId and d.date = :date")

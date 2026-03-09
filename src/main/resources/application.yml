@@ -6,3 +6,15 @@ spring:
 
 server:
   port: 8080
+
+redis:
+  stream:
+    reservation:
+      key-prefix: reservation:stream.
+      partition-count: 4
+      consumer-group: reservation:consumer-group
+      consumer-prefix: consumer-
+      error-stream-key: reservation:error-stream
+      error-consumer-group: reservation:error-consumer-group
+      error-consumer-name: error-consumer-1
+      remaining-key-prefix: reservation:remaining:

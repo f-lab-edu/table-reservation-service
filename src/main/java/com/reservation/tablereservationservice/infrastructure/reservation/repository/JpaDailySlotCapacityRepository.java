@@ -1,6 +1,7 @@
 package com.reservation.tablereservationservice.infrastructure.reservation.repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
@@ -52,6 +53,14 @@ public class JpaDailySlotCapacityRepository implements DailySlotCapacityReposito
 		entity.updateRemainingCount(capacity.getRemainingCount());
 
 		// save() 호출 없음 -> 영속성 컨텍스트 변경 감지로 UPDATE
+	}
+
+	@Override
+	public List<DailySlotCapacity> findAllFromDate(LocalDate date) {
+		return dailySlotCapacityEntityRepository.findAllByDateGreaterThanEqual(date)
+			.stream()
+			.map(ReservationMapper.INSTANCE::toDomain)
+			.toList();
 	}
 
 	@Override
