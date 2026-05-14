@@ -27,21 +27,22 @@ export const options = {
 };
 
 // 고정된 테스트 날짜 (DB에 입력한 @fcfs_date와 일치해야 함)
+// data.sql은 UTC_DATE + 1 DAY 부터 적재하므로 내일 날짜 사용
 function getTestDate() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export default function () {
   const userIndex = __VU; // 1..100
   const userEmail = `customer${userIndex}@test.com`;
-  const requestId = `req-${userIndex}-${Date.now()}`;
 
   const payload = JSON.stringify({
     slotId: SLOT_ID,
     date: getTestDate(),
     partySize: PARTY_SIZE,
     note: 'optimistic-lock-test',
-    requestId: requestId,
   });
 
   const params = {
