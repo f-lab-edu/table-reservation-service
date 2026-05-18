@@ -17,4 +17,6 @@ redis:
       error-stream-key: reservation:error-stream
       error-consumer-group: reservation:error-consumer-group
       error-consumer-name: error-consumer-1
-      remaining-key-prefix: reservation:remaining:
+      remaining-key-prefix: "reservation:remaining:"
+  pubsub:
+    notification-channel: notification:events

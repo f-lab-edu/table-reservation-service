@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.reservation.tablereservationservice.application.notification.NotificationService;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
@@ -26,6 +27,7 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
 import com.reservation.tablereservationservice.infrastructure.stream.ReservationRequestMessage;
 import com.reservation.tablereservationservice.infrastructure.stream.ReservationStreamPublisher;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
@@ -47,6 +49,8 @@ public class ReservationService {
 	private final ReservationRepository reservationRepository;
 	private final RestaurantRepository restaurantRepository;
 	private final ReservationStreamPublisher reservationStreamPublisher;
+	private final NotificationService notificationService;
+	private final TransactionHandler transactionHandler;
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
@@ -62,84 +66,55 @@ public class ReservationService {
 		validateDuplicatedTime(user.getUserId(), visitAt);
 
 		DailySlotCapacity capacity = dailySlotCapacityRepository
-			.findBySlotIdAndDate(slot.getSlotId(), requestDto.getDate())
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
+				.findBySlotIdAndDate(slot.getSlotId(), requestDto.getDate())
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
 
 		// 수량 검증 및 차감
 		decreaseCapacity(capacity, requestDto.getPartySize());
 
 		Reservation reservation = Reservation.builder()
-			.userId(user.getUserId())
-			.slotId(slot.getSlotId())
-			.visitAt(visitAt)
-			.partySize(requestDto.getPartySize())
-			.note(requestDto.getNote())
-			.status(ReservationStatus.CONFIRMED)
-			.build();
+				.userId(user.getUserId())
+				.slotId(slot.getSlotId())
+				.visitAt(visitAt)
+				.partySize(requestDto.getPartySize())
+				.note(requestDto.getNote())
+				.status(ReservationStatus.CONFIRMED)
+				.build();
 
+		Reservation saved;
 		try {
-			return reservationRepository.save(reservation);
+			saved = reservationRepository.save(reservation);
 		} catch (DataIntegrityViolationException e) {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
 		}
 
-	}
+		log.info("[RESERVATION] 예약 생성 완료 reservationId={}, userId={}, slotId={}, visitAt={}",
+				saved.getReservationId(), saved.getUserId(), saved.getSlotId(), saved.getVisitAt());
 
-	// 테스트 전용 오버로딩 메서드
-	@Transactional
-	public Reservation create(String email, ReservationRequestDto requestDto, long processingOrder) {
-		User user = userRepository.fetchByEmail(email);
+		Restaurant restaurant = findRestaurantBySlotId(slot.getSlotId());
+		transactionHandler.runAfterCommit(() ->
+				notificationService.notifyConfirmed(saved, restaurant.getOwnerId(), restaurant.getName()));
 
-		RestaurantSlot slot = restaurantSlotRepository.fetchById(requestDto.getSlotId());
-
-		validatePartySize(requestDto.getPartySize(), slot);
-
-		LocalDateTime visitAt = LocalDateTime.of(requestDto.getDate(), slot.getTime());
-
-		// 중복 시간대 예약 검증
-		validateDuplicatedTime(user.getUserId(), visitAt);
-
-		DailySlotCapacity capacity = dailySlotCapacityRepository
-			.findBySlotIdAndDate(slot.getSlotId(), requestDto.getDate())
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
-
-		// 수량 검증 및 차감
-		decreaseCapacity(capacity, requestDto.getPartySize());
-
-		Reservation reservation = Reservation.builder()
-			.userId(user.getUserId())
-			.slotId(slot.getSlotId())
-			.visitAt(visitAt)
-			.partySize(requestDto.getPartySize())
-			.note(requestDto.getNote())
-			.status(ReservationStatus.CONFIRMED)
-			.processingOrder(processingOrder)
-			.build();
-
-		try {
-			return reservationRepository.save(reservation);
-		} catch (DataIntegrityViolationException e) {
-			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
-		}
+		return saved;
 
 	}
 
 	@Transactional(readOnly = true)
 	public PageResponseDto<ReservationListResponseDto> findMyReservations(
-		String email,
-		ReservationSearchDto searchDto
+			String email,
+			ReservationSearchDto searchDto
 	) {
 		User user = userRepository.fetchByEmail(email);
 
 		// page reservation 조회
 		Page<Reservation> page =
-			reservationRepository.findMyReservations(
-				user.getUserId(),
-				searchDto.getStatus(),
-				searchDto.getStartDate().atStartOfDay(),
-				searchDto.getEndDate().atTime(LocalTime.MAX),
-				searchDto.getPageable()
-			);
+				reservationRepository.findMyReservations(
+						user.getUserId(),
+						searchDto.getStatus(),
+						searchDto.getStartDate().atStartOfDay(),
+						searchDto.getEndDate().atTime(LocalTime.MAX),
+						searchDto.getPageable()
+				);
 
 		if (page.isEmpty()) {
 			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
@@ -153,14 +128,14 @@ public class ReservationService {
 
 	@Transactional(readOnly = true)
 	public PageResponseDto<ReservationListResponseDto> findOwnerReservations(
-		String email,
-		ReservationSearchDto searchDto
+			String email,
+			ReservationSearchDto searchDto
 	) {
 		User owner = userRepository.fetchByEmail(email);
 
 		List<Long> restaurantIds = restaurantRepository.findAllByOwnerId(owner.getUserId()).stream()
-			.map(Restaurant::getRestaurantId)
-			.toList();
+				.map(Restaurant::getRestaurantId)
+				.toList();
 
 		if (restaurantIds.isEmpty()) {
 			return PageResponseDto.from(Page.empty(searchDto.getPageable()));
@@ -168,11 +143,11 @@ public class ReservationService {
 
 		// page reservation 조회
 		Page<Reservation> page = reservationRepository.findOwnerReservations(
-			restaurantIds,
-			searchDto.getStatus(),
-			searchDto.getStartDate().atStartOfDay(),
-			searchDto.getEndDate().atTime(LocalTime.MAX),
-			searchDto.getPageable()
+				restaurantIds,
+				searchDto.getStatus(),
+				searchDto.getStartDate().atStartOfDay(),
+				searchDto.getEndDate().atTime(LocalTime.MAX),
+				searchDto.getPageable()
 		);
 
 		if (page.isEmpty()) {
@@ -181,12 +156,12 @@ public class ReservationService {
 
 		// owner는 예약자(user)가 여러 명이므로 userMap을 따로 구성
 		List<Long> userIds = page.getContent().stream()
-			.map(Reservation::getUserId)
-			.distinct()
-			.toList();
+				.map(Reservation::getUserId)
+				.distinct()
+				.toList();
 
 		Map<Long, User> idToUser = userRepository.findAllById(userIds).stream()
-			.collect(toMap(User::getUserId, Function.identity()));
+				.collect(toMap(User::getUserId, Function.identity()));
 
 		Page<ReservationListResponseDto> dtoPage = createReservationListDtoPage(page, idToUser);
 
@@ -200,18 +175,9 @@ public class ReservationService {
 		reservationStreamPublisher.publish(message);
 	}
 
-	public void handleReservationRequest(ReservationRequestMessage message, long processingOrder) {
-		log.info(
-			"[RESERVATION_HANDLE] seq={}, email={}, slotId={}",
-			processingOrder, message.userEmail(), message.slotId()
-		);
-
-		create(message.userEmail(), message.toDto(), processingOrder);
-	}
-
 	private Page<ReservationListResponseDto> createReservationListDtoPage(
-		Page<Reservation> page,
-		Map<Long, User> idToUser
+			Page<Reservation> page,
+			Map<Long, User> idToUser
 	) {
 		Map<Long, RestaurantSlot> idToSlot = loadSlotMap(page);
 		Map<Long, Restaurant> idToRestaurant = loadRestaurantMap(idToSlot);
@@ -220,24 +186,24 @@ public class ReservationService {
 			User user = idToUser.get(reservation.getUserId());
 			if (user == null) {
 				throw new ReservationException(
-					ErrorCode.RESOURCE_NOT_FOUND,
-					"User (userId=" + reservation.getUserId() + ")"
+						ErrorCode.RESOURCE_NOT_FOUND,
+						"User (userId=" + reservation.getUserId() + ")"
 				);
 			}
 
 			RestaurantSlot slot = idToSlot.get(reservation.getSlotId());
 			if (slot == null) {
 				throw new ReservationException(
-					ErrorCode.RESOURCE_NOT_FOUND,
-					"RestaurantSlot (slotId=" + reservation.getSlotId() + ")"
+						ErrorCode.RESOURCE_NOT_FOUND,
+						"RestaurantSlot (slotId=" + reservation.getSlotId() + ")"
 				);
 			}
 
 			Restaurant restaurant = idToRestaurant.get(slot.getRestaurantId());
 			if (restaurant == null) {
 				throw new ReservationException(
-					ErrorCode.RESOURCE_NOT_FOUND,
-					"Restaurant (restaurantId=" + slot.getRestaurantId() + ")"
+						ErrorCode.RESOURCE_NOT_FOUND,
+						"Restaurant (restaurantId=" + slot.getRestaurantId() + ")"
 				);
 			}
 
@@ -256,33 +222,40 @@ public class ReservationService {
 		reservation.cancel();
 
 		DailySlotCapacity capacity = dailySlotCapacityRepository
-			.findBySlotIdAndDate(reservation.getSlotId(), reservation.getVisitAt().toLocalDate())
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
+				.findBySlotIdAndDate(reservation.getSlotId(), reservation.getVisitAt().toLocalDate())
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
 
 		restoreCapacity(capacity, reservation.getPartySize());
 		reservationRepository.updateStatus(reservation);
+
+		log.info("[RESERVATION] 예약 취소 완료 reservationId={}, userId={}", reservation.getReservationId(),
+				reservation.getUserId());
+
+		Restaurant restaurant = findRestaurantBySlotId(reservation.getSlotId());
+		transactionHandler.runAfterCommit(() ->
+				notificationService.notifyCanceled(reservation, restaurant.getOwnerId(), restaurant.getName()));
 
 		return reservation;
 	}
 
 	private Map<Long, RestaurantSlot> loadSlotMap(Page<Reservation> page) {
 		List<Long> slotIds = page.getContent().stream()
-			.map(Reservation::getSlotId)
-			.distinct()
-			.toList();
+				.map(Reservation::getSlotId)
+				.distinct()
+				.toList();
 
 		return restaurantSlotRepository.findAllById(slotIds).stream()
-			.collect(toMap(RestaurantSlot::getSlotId, Function.identity()));
+				.collect(toMap(RestaurantSlot::getSlotId, Function.identity()));
 	}
 
 	private Map<Long, Restaurant> loadRestaurantMap(Map<Long, RestaurantSlot> idToSlot) {
 		List<Long> restaurantIds = idToSlot.values().stream()
-			.map(RestaurantSlot::getRestaurantId)
-			.distinct()
-			.toList();
+				.map(RestaurantSlot::getRestaurantId)
+				.distinct()
+				.toList();
 
 		return restaurantRepository.findAllById(restaurantIds).stream()
-			.collect(toMap(Restaurant::getRestaurantId, Function.identity()));
+				.collect(toMap(Restaurant::getRestaurantId, Function.identity()));
 	}
 
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {
@@ -323,4 +296,9 @@ public class ReservationService {
 		dailySlotCapacityRepository.updateRemainingCount(capacity);
 	}
 
+	private Restaurant findRestaurantBySlotId(Long slotId) {
+		RestaurantSlot slot = restaurantSlotRepository.fetchById(slotId);
+		return restaurantRepository.findById(slot.getRestaurantId())
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Restaurant"));
+	}
 }

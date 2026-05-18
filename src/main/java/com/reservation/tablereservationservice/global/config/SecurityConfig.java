@@ -1,5 +1,7 @@
 package com.reservation.tablereservationservice.global.config;
 
+import jakarta.servlet.DispatcherType;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -45,11 +47,11 @@ public class SecurityConfig {
 			)
 
 			.authorizeHttpRequests(auth -> auth
+				.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
 				.requestMatchers(
 					"/api/users/signup",
 					"/api/users/login",
 					"/api/health",
-					"/api/reservations/test/**",
 					"/actuator/prometheus"
 				).permitAll()
 				.anyRequest().authenticated()
