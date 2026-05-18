@@ -1,7 +1,5 @@
 package com.reservation.tablereservationservice.infrastructure.notification.entity;
 
-import java.time.LocalDateTime;
-
 import com.reservation.tablereservationservice.domain.notification.NotificationType;
 import com.reservation.tablereservationservice.infrastructure.common.entity.BaseTimeEntity;
 
@@ -42,16 +40,21 @@ public class NotificationEntity extends BaseTimeEntity {
 	@Column(nullable = false, length = 500)
 	private String content;
 
-	private LocalDateTime readAt;
+	@Column(nullable = false)
+	private boolean isRead;
 
 	@Builder
 	public NotificationEntity(Long receiverId, Long reservationId, NotificationType type,
-		String title, String content, LocalDateTime readAt) {
+		String title, String content, boolean isRead) {
 		this.receiverId = receiverId;
 		this.reservationId = reservationId;
 		this.type = type;
 		this.title = title;
 		this.content = content;
-		this.readAt = readAt;
+		this.isRead = isRead;
+	}
+
+	public void markAsRead() {
+		this.isRead = true;
 	}
 }

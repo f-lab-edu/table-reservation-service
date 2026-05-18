@@ -14,18 +14,24 @@ public class Notification {
 	private NotificationType type;
 	private String title;
 	private String content;
-	private LocalDateTime readAt;
+	private boolean isRead;
+	private LocalDateTime createdAt;
 
 	@Builder
 	public Notification(Long notificationId, Long receiverId, Long reservationId, NotificationType type,
-		String title, String content, LocalDateTime readAt) {
+		String title, String content, boolean isRead, LocalDateTime createdAt) {
 		this.notificationId = notificationId;
 		this.receiverId = receiverId;
 		this.reservationId = reservationId;
 		this.type = type;
 		this.title = title;
 		this.content = content;
-		this.readAt = readAt;
+		this.isRead = isRead;
+		this.createdAt = createdAt;
+	}
+
+	public void markAsRead() {
+		this.isRead = true;
 	}
 
 	public static Notification from(AlarmMessage message) {
@@ -35,8 +41,7 @@ public class Notification {
 			.type(message.getType())
 			.title(message.getTitle())
 			.content(message.getContent())
-			.readAt(null)
+			.isRead(false)
 			.build();
 	}
 }
-
