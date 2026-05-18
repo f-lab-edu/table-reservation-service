@@ -2,6 +2,9 @@ package com.reservation.tablereservationservice.application.notification;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,7 +12,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.reservation.tablereservationservice.domain.notification.AlarmMessage;
 import com.reservation.tablereservationservice.domain.notification.NotificationType;
 import com.reservation.tablereservationservice.infrastructure.notification.entity.NotificationEntity;
 import com.reservation.tablereservationservice.infrastructure.notification.repository.NotificationEntityRepository;
@@ -26,31 +28,72 @@ class NotificationServiceIntegrationTest {
 	private NotificationEntityRepository notificationEntityRepository;
 
 	@Test
-	@DisplayName("알림 저장 성공 - notificationId 반환 및 DB 저장 확인")
-	void save_success() {
+	@DisplayName("예약 확정 알림 - 고객과 점주 모두 DB에 저장된다")
+	void notifyReservationConfirmed_persistsBothToDb() {
 		// given
-		AlarmMessage message = AlarmMessage.builder()
-			.receiverId(1L)
-			.reservationId(10L)
-			.type(NotificationType.RESERVATION_CONFIRMED)
-			.title("예약이 완료됐어요!")
-			.content("강남 한상 / 2026-03-01 19:00 / 2명")
-			.build();
+		Long customerId = 1L;
+		Long ownerId = 2L;
+		Long reservationId = 10L;
+		LocalDateTime visitAt = LocalDateTime.of(2026, 6, 1, 19, 0);
+		int partySize = 2;
 
 		// when
-		Long notificationId = notificationService.save(message);
+		notificationService.notifyReservationConfirmed(customerId, ownerId, reservationId, visitAt, partySize);
 
 		// then
-		assertThat(notificationId).isNotNull();
+		List<NotificationEntity> all = notificationEntityRepository.findAll().stream()
+			.filter(e -> e.getReservationId().equals(reservationId))
+			.toList();
 
-		NotificationEntity saved = notificationEntityRepository.findById(notificationId)
-			.orElseThrow();
+		assertThat(all).hasSize(2);
 
-		assertThat(saved.getReceiverId()).isEqualTo(1L);
-		assertThat(saved.getReservationId()).isEqualTo(10L);
-		assertThat(saved.getType()).isEqualTo(NotificationType.RESERVATION_CONFIRMED);
-		assertThat(saved.getTitle()).isEqualTo("예약이 완료됐어요!");
-		assertThat(saved.getContent()).isEqualTo("강남 한상 / 2026-03-01 19:00 / 2명");
-		assertThat(saved.getReadAt()).isNull();
+		NotificationEntity customerNotification = all.stream()
+			.filter(e -> e.getReceiverId().equals(customerId))
+			.findFirst().orElseThrow();
+		assertThat(customerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CONFIRMED);
+		assertThat(customerNotification.isRead()).isFalse();
+		assertThat(customerNotification.getContent()).contains("2026-06-01").contains("2명");
+
+		NotificationEntity ownerNotification = all.stream()
+			.filter(e -> e.getReceiverId().equals(ownerId))
+			.findFirst().orElseThrow();
+		assertThat(ownerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CONFIRMED);
+		assertThat(ownerNotification.isRead()).isFalse();
+		assertThat(ownerNotification.getContent()).contains("2026-06-01").contains("2명");
+	}
+
+	@Test
+	@DisplayName("예약 취소 알림 - 고객과 점주 모두 DB에 저장된다")
+	void notifyReservationCancelled_persistsBothToDb() {
+		// given
+		Long customerId = 1L;
+		Long ownerId = 2L;
+		Long reservationId = 20L;
+		LocalDateTime visitAt = LocalDateTime.of(2026, 6, 1, 19, 0);
+		int partySize = 3;
+
+		// when
+		notificationService.notifyReservationCancelled(customerId, ownerId, reservationId, visitAt, partySize);
+
+		// then
+		List<NotificationEntity> all = notificationEntityRepository.findAll().stream()
+			.filter(e -> e.getReservationId().equals(reservationId))
+			.toList();
+
+		assertThat(all).hasSize(2);
+
+		NotificationEntity customerNotification = all.stream()
+			.filter(e -> e.getReceiverId().equals(customerId))
+			.findFirst().orElseThrow();
+		assertThat(customerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CANCELLED);
+		assertThat(customerNotification.isRead()).isFalse();
+		assertThat(customerNotification.getContent()).contains("2026-06-01").contains("3명");
+
+		NotificationEntity ownerNotification = all.stream()
+			.filter(e -> e.getReceiverId().equals(ownerId))
+			.findFirst().orElseThrow();
+		assertThat(ownerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CANCELLED);
+		assertThat(ownerNotification.isRead()).isFalse();
+		assertThat(ownerNotification.getContent()).contains("2026-06-01").contains("3명");
 	}
 }
