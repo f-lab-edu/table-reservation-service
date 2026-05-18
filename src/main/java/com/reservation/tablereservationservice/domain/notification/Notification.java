@@ -2,6 +2,8 @@ package com.reservation.tablereservationservice.domain.notification;
 
 import java.time.LocalDateTime;
 
+import com.reservation.tablereservationservice.domain.reservation.Reservation;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -19,7 +21,7 @@ public class Notification {
 
 	@Builder
 	public Notification(Long notificationId, Long receiverId, Long reservationId, NotificationType type,
-		String title, String content, boolean isRead, LocalDateTime createdAt) {
+			String title, String content, boolean isRead, LocalDateTime createdAt) {
 		this.notificationId = notificationId;
 		this.receiverId = receiverId;
 		this.reservationId = reservationId;
@@ -30,18 +32,35 @@ public class Notification {
 		this.createdAt = createdAt;
 	}
 
-	public void markAsRead() {
-		this.isRead = true;
+	public static Notification customerConfirmed(Reservation reservation, String restaurantName) {
+		return create(reservation.getUserId(), reservation, NotificationType.CONFIRMED,
+				NotificationType.CONFIRMED.customerContent(reservation.getVisitAt(), restaurantName));
 	}
 
-	public static Notification from(AlarmMessage message) {
+	public static Notification ownerConfirmed(Reservation reservation, Long ownerId) {
+		return create(ownerId, reservation, NotificationType.CONFIRMED,
+				NotificationType.CONFIRMED.ownerContent(reservation.getVisitAt(), reservation.getPartySize()));
+	}
+
+	public static Notification customerCanceled(Reservation reservation, String restaurantName) {
+		return create(reservation.getUserId(), reservation, NotificationType.CANCELED,
+				NotificationType.CANCELED.customerContent(reservation.getVisitAt(), restaurantName));
+	}
+
+	public static Notification ownerCanceled(Reservation reservation, Long ownerId) {
+		return create(ownerId, reservation, NotificationType.CANCELED,
+				NotificationType.CANCELED.ownerContent(reservation.getVisitAt(), reservation.getPartySize()));
+	}
+
+	private static Notification create(Long receiverId, Reservation reservation,
+			NotificationType type, String content) {
 		return Notification.builder()
-			.receiverId(message.getReceiverId())
-			.reservationId(message.getReservationId())
-			.type(message.getType())
-			.title(message.getTitle())
-			.content(message.getContent())
-			.isRead(false)
-			.build();
+				.receiverId(receiverId)
+				.reservationId(reservation.getReservationId())
+				.type(type)
+				.title(type.getTitle())
+				.content(content)
+				.isRead(false)
+				.build();
 	}
 }

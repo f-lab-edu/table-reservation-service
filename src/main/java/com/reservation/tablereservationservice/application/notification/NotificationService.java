@@ -1,16 +1,15 @@
 package com.reservation.tablereservationservice.application.notification;
 
-import java.time.LocalDateTime;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import com.reservation.tablereservationservice.domain.notification.AlarmMessage;
 import com.reservation.tablereservationservice.domain.notification.Notification;
 import com.reservation.tablereservationservice.domain.notification.NotificationRepository;
+import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
 import com.reservation.tablereservationservice.infrastructure.notification.pubsub.NotificationPublisher;
 import com.reservation.tablereservationservice.infrastructure.notification.sse.SseEmitterRegistry;
@@ -39,31 +38,29 @@ public class NotificationService {
 		return emitter;
 	}
 
+	@Async
 	@Transactional
-	public void notifyReservationConfirmed(Long customerId, Long ownerId, Long reservationId, LocalDateTime visitAt, int partySize) {
-		stage(AlarmMessage.reservationConfirmed(customerId, reservationId, visitAt, partySize));
-		stage(AlarmMessage.ownerReservationConfirmed(ownerId, reservationId, visitAt, partySize));
+	public void notifyConfirmed(Reservation reservation, Long ownerId, String restaurantName) {
+		persist(Notification.customerConfirmed(reservation, restaurantName));
+		persist(Notification.ownerConfirmed(reservation, ownerId));
+	}
+
+	@Async
+	@Transactional
+	public void notifyCanceled(Reservation reservation, Long ownerId, String restaurantName) {
+		persist(Notification.customerCanceled(reservation, restaurantName));
+		persist(Notification.ownerCanceled(reservation, ownerId));
+	}
+
+	private void persist(Notification notification) {
+		notificationRepository.save(notification);
+		transactionHandler.runAfterCommit(() -> pubSubPublisher.publish(notification));
 	}
 
 	@Transactional
-	public void notifyReservationCancelled(Long customerId, Long ownerId, Long reservationId, LocalDateTime visitAt, int partySize) {
-		stage(AlarmMessage.reservationCancelled(customerId, reservationId, visitAt, partySize));
-		stage(AlarmMessage.ownerReservationCancelled(ownerId, reservationId, visitAt, partySize));
-	}
-
-	private void stage(AlarmMessage message) {
-		notificationRepository.save(Notification.from(message));
-		transactionHandler.runAfterCommit(() -> pubSubPublisher.publish(message));
-	}
-
-	@Transactional(readOnly = true)
 	public PageResponseDto<NotificationResponseDto> findAll(Long receiverId, Pageable pageable) {
 		Page<Notification> page = notificationRepository.findAllByReceiverId(receiverId, pageable);
+		notificationRepository.markAllAsRead(receiverId);
 		return PageResponseDto.from(page.map(NotificationResponseDto::from));
-	}
-
-	@Transactional
-	public void markAsRead(Long notificationId, Long receiverId) {
-		notificationRepository.markAsRead(notificationId, receiverId);
 	}
 }

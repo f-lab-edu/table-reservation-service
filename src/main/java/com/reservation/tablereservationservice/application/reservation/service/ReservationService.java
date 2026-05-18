@@ -27,6 +27,7 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
 import com.reservation.tablereservationservice.infrastructure.stream.ReservationRequestMessage;
 import com.reservation.tablereservationservice.infrastructure.stream.ReservationStreamPublisher;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
@@ -49,6 +50,7 @@ public class ReservationService {
 	private final RestaurantRepository restaurantRepository;
 	private final ReservationStreamPublisher reservationStreamPublisher;
 	private final NotificationService notificationService;
+	private final TransactionHandler transactionHandler;
 
 	@Transactional
 	public Reservation create(String email, ReservationRequestDto requestDto) {
@@ -79,15 +81,21 @@ public class ReservationService {
 				.status(ReservationStatus.CONFIRMED)
 				.build();
 
+		Reservation saved;
 		try {
-			Reservation saved = reservationRepository.save(reservation);
-			Long ownerId = findOwnerIdBySlotId(slot.getSlotId());
-			notificationService.notifyReservationConfirmed(
-					saved.getUserId(), ownerId, saved.getReservationId(), saved.getVisitAt(), saved.getPartySize());
-			return saved;
+			saved = reservationRepository.save(reservation);
 		} catch (DataIntegrityViolationException e) {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
 		}
+
+		log.info("[RESERVATION] 예약 생성 완료 reservationId={}, userId={}, slotId={}, visitAt={}",
+				saved.getReservationId(), saved.getUserId(), saved.getSlotId(), saved.getVisitAt());
+
+		Restaurant restaurant = findRestaurantBySlotId(slot.getSlotId());
+		transactionHandler.runAfterCommit(() ->
+				notificationService.notifyConfirmed(saved, restaurant.getOwnerId(), restaurant.getName()));
+
+		return saved;
 
 	}
 
@@ -220,10 +228,12 @@ public class ReservationService {
 		restoreCapacity(capacity, reservation.getPartySize());
 		reservationRepository.updateStatus(reservation);
 
-		Long ownerId = findOwnerIdBySlotId(reservation.getSlotId());
-		notificationService.notifyReservationCancelled(
-				reservation.getUserId(), ownerId, reservation.getReservationId(),
-				reservation.getVisitAt(), reservation.getPartySize());
+		log.info("[RESERVATION] 예약 취소 완료 reservationId={}, userId={}", reservation.getReservationId(),
+				reservation.getUserId());
+
+		Restaurant restaurant = findRestaurantBySlotId(reservation.getSlotId());
+		transactionHandler.runAfterCommit(() ->
+				notificationService.notifyCanceled(reservation, restaurant.getOwnerId(), restaurant.getName()));
 
 		return reservation;
 	}
@@ -286,10 +296,9 @@ public class ReservationService {
 		dailySlotCapacityRepository.updateRemainingCount(capacity);
 	}
 
-	private Long findOwnerIdBySlotId(Long slotId) {
+	private Restaurant findRestaurantBySlotId(Long slotId) {
 		RestaurantSlot slot = restaurantSlotRepository.fetchById(slotId);
 		return restaurantRepository.findById(slot.getRestaurantId())
-				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Restaurant"))
-				.getOwnerId();
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Restaurant"));
 	}
 }

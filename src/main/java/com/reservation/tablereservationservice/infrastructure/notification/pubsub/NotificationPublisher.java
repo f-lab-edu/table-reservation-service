@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.reservation.tablereservationservice.domain.notification.AlarmMessage;
+import com.reservation.tablereservationservice.domain.notification.Notification;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,20 +22,20 @@ public class NotificationPublisher {
 	private final StringRedisTemplate redisTemplate;
 	private final ObjectMapper objectMapper;
 
-	public void publish(AlarmMessage message) {
+	public void publish(Notification notification) {
 		try {
 			NotificationEvent event = new NotificationEvent(
-				message.getReceiverId(),
-				message.getReservationId(),
-				message.getType(),
-				message.getTitle(),
-				message.getContent()
+					notification.getReceiverId(),
+					notification.getReservationId(),
+					notification.getType(),
+					notification.getTitle(),
+					notification.getContent()
 			);
 			String json = objectMapper.writeValueAsString(event);
 			redisTemplate.convertAndSend(channel, json);
-			log.debug("[PubSub] 알림 발행 receiverId={}, type={}", message.getReceiverId(), message.getType());
+			log.debug("[PubSub] 알림 발행 receiverId={}, type={}", notification.getReceiverId(), notification.getType());
 		} catch (JsonProcessingException e) {
-			log.error("[PubSub] 알림 직렬화 실패 receiverId={}", message.getReceiverId(), e);
+			log.error("[PubSub] 알림 직렬화 실패 receiverId={}", notification.getReceiverId(), e);
 		}
 	}
 }

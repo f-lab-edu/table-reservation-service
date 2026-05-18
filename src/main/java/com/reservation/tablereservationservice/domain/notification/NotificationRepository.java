@@ -9,5 +9,5 @@ public interface NotificationRepository {
 
 	Page<Notification> findAllByReceiverId(Long receiverId, Pageable pageable);
 
-	void markAsRead(Long notificationId, Long receiverId);
+	void markAllAsRead(Long receiverId);
 }

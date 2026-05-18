@@ -17,6 +17,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.reservation.tablereservationservice.domain.notification.Notification;
 import com.reservation.tablereservationservice.domain.notification.NotificationRepository;
 import com.reservation.tablereservationservice.domain.notification.NotificationType;
+import com.reservation.tablereservationservice.domain.reservation.Reservation;
+import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
 import com.reservation.tablereservationservice.infrastructure.notification.pubsub.NotificationPublisher;
 import com.reservation.tablereservationservice.infrastructure.notification.sse.SseEmitterRegistry;
@@ -41,18 +43,15 @@ class NotificationServiceTest {
 
 	@Test
 	@DisplayName("예약 확정 알림 - 고객과 점주 모두 DB에 저장된다")
-	void notifyReservationConfirmed_savesBothNotifications() {
+	void notifyConfirmed_savesBothNotifications() {
 		// given
 		Long customerId = 1L;
 		Long ownerId = 2L;
-		Long reservationId = 10L;
-		LocalDateTime visitAt = LocalDateTime.of(2026, 6, 1, 19, 0);
-		int partySize = 2;
-
+		Reservation reservation = reservation(customerId, 10L, LocalDateTime.of(2026, 6, 1, 19, 0), 2);
 		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
 
 		// when
-		notificationService.notifyReservationConfirmed(customerId, ownerId, reservationId, visitAt, partySize);
+		notificationService.notifyConfirmed(reservation, ownerId, "테스트식당");
 
 		// then: 고객 + 점주 2건 저장
 		verify(notificationRepository, times(2)).save(captor.capture());
@@ -60,30 +59,27 @@ class NotificationServiceTest {
 
 		Notification customerNotification = saved.get(0);
 		assertThat(customerNotification.getReceiverId()).isEqualTo(customerId);
-		assertThat(customerNotification.getReservationId()).isEqualTo(reservationId);
-		assertThat(customerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CONFIRMED);
+		assertThat(customerNotification.getReservationId()).isEqualTo(reservation.getReservationId());
+		assertThat(customerNotification.getType()).isEqualTo(NotificationType.CONFIRMED);
 		assertThat(customerNotification.isRead()).isFalse();
 
 		Notification ownerNotification = saved.get(1);
 		assertThat(ownerNotification.getReceiverId()).isEqualTo(ownerId);
-		assertThat(ownerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CONFIRMED);
+		assertThat(ownerNotification.getType()).isEqualTo(NotificationType.CONFIRMED);
 		assertThat(ownerNotification.isRead()).isFalse();
 	}
 
 	@Test
 	@DisplayName("예약 취소 알림 - 고객과 점주 모두 DB에 저장된다")
-	void notifyReservationCancelled_savesBothNotifications() {
+	void notifyCanceled_savesBothNotifications() {
 		// given
 		Long customerId = 1L;
 		Long ownerId = 2L;
-		Long reservationId = 10L;
-		LocalDateTime visitAt = LocalDateTime.of(2026, 6, 1, 19, 0);
-		int partySize = 2;
-
+		Reservation reservation = reservation(customerId, 10L, LocalDateTime.of(2026, 6, 1, 19, 0), 3);
 		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
 
 		// when
-		notificationService.notifyReservationCancelled(customerId, ownerId, reservationId, visitAt, partySize);
+		notificationService.notifyCanceled(reservation, ownerId, "테스트식당");
 
 		// then: 고객 + 점주 2건 저장
 		verify(notificationRepository, times(2)).save(captor.capture());
@@ -91,26 +87,37 @@ class NotificationServiceTest {
 
 		Notification customerNotification = saved.get(0);
 		assertThat(customerNotification.getReceiverId()).isEqualTo(customerId);
-		assertThat(customerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CANCELLED);
+		assertThat(customerNotification.getType()).isEqualTo(NotificationType.CANCELED);
 		assertThat(customerNotification.isRead()).isFalse();
 
 		Notification ownerNotification = saved.get(1);
 		assertThat(ownerNotification.getReceiverId()).isEqualTo(ownerId);
-		assertThat(ownerNotification.getType()).isEqualTo(NotificationType.RESERVATION_CANCELLED);
+		assertThat(ownerNotification.getType()).isEqualTo(NotificationType.CANCELED);
 		assertThat(ownerNotification.isRead()).isFalse();
 	}
 
 	@Test
 	@DisplayName("알림 저장 후 afterCommit 콜백으로 Pub/Sub 발행이 예약된다")
-	void notifyReservationConfirmed_schedulesPublishAfterCommit() {
+	void notifyConfirmed_schedulesPublishAfterCommit() {
 		// given
-		LocalDateTime visitAt = LocalDateTime.of(2026, 6, 1, 19, 0);
+		Reservation reservation = reservation(1L, 10L, LocalDateTime.of(2026, 6, 1, 19, 0), 2);
 
 		// when
-		notificationService.notifyReservationConfirmed(1L, 2L, 10L, visitAt, 2);
+		notificationService.notifyConfirmed(reservation, 2L, "테스트식당");
 
 		// then: 고객 + 점주 각각 afterCommit 콜백 등록, publish는 즉시 호출되지 않음
 		verify(transactionHandler, times(2)).runAfterCommit(any());
 		verify(pubSubPublisher, never()).publish(any());
+	}
+
+	private Reservation reservation(Long userId, Long reservationId, LocalDateTime visitAt, int partySize) {
+		return Reservation.builder()
+				.userId(userId)
+				.reservationId(reservationId)
+				.slotId(1L)
+				.visitAt(visitAt)
+				.partySize(partySize)
+				.status(ReservationStatus.CONFIRMED)
+				.build();
 	}
 }

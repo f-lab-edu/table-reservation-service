@@ -7,8 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.reservation.tablereservationservice.domain.notification.Notification;
 import com.reservation.tablereservationservice.domain.notification.NotificationRepository;
-import com.reservation.tablereservationservice.global.exception.ErrorCode;
-import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.infrastructure.notification.entity.NotificationEntity;
 import com.reservation.tablereservationservice.infrastructure.notification.mapper.NotificationMapper;
 
@@ -30,22 +28,13 @@ public class JpaNotificationRepository implements NotificationRepository {
 
 	@Override
 	public Page<Notification> findAllByReceiverId(Long receiverId, Pageable pageable) {
-		return notificationEntityRepository
-			.findAllByReceiverIdOrderByCreatedAtDesc(receiverId, pageable)
-			.map(NotificationMapper.INSTANCE::toDomain);
+		return notificationEntityRepository.findAllByReceiverIdOrderByCreatedAtDesc(receiverId, pageable)
+				.map(NotificationMapper.INSTANCE::toDomain);
 	}
 
 	@Override
 	@Transactional
-	public void markAsRead(Long notificationId, Long receiverId) {
-		NotificationEntity entity = notificationEntityRepository
-			.findByNotificationIdAndReceiverId(notificationId, receiverId)
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Notification"));
-
-		if (entity.isRead()) {
-			return;
-		}
-
-		entity.markAsRead();
+	public void markAllAsRead(Long receiverId) {
+		notificationEntityRepository.markAllAsRead(receiverId);
 	}
 }

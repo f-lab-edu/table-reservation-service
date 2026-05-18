@@ -4,8 +4,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -33,16 +31,10 @@ public class NotificationController {
 
 	@GetMapping
 	public ApiResponse<PageResponseDto<NotificationResponseDto>> getNotifications(
-		@LoginUser CurrentUser user,
-		@PageableDefault(size = 20, sort = "createdAt") Pageable pageable
+			@LoginUser CurrentUser user,
+			@PageableDefault(size = 20, sort = "createdAt") Pageable pageable
 	) {
 		return ApiResponse.success("알림 목록 조회 성공", notificationService.findAll(user.userId(), pageable));
 	}
 
-	@PatchMapping("/{notificationId}/read")
-	public ApiResponse<Void> markAsRead(@PathVariable Long notificationId, @LoginUser CurrentUser user
-	) {
-		notificationService.markAsRead(notificationId, user.userId());
-		return ApiResponse.success("읽음 처리 완료");
-	}
 }
