@@ -99,7 +99,7 @@ public class ReservationStreamConsumer implements ApplicationRunner {
 		consumerTimer.record(() -> {
 			try {
 				ReservationRequestMessage message = ReservationRequestMessage.fromMap(body);
-				reservationService.handleReservationRequest(message, processingOrder);
+				reservationService.create(message.userEmail(), message.toDto());
 
 				// 처리 성공 → XACK 전송 → PEL 에서 제거
 				ack(record);

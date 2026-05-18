@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.global.util.ProcessingOrderGenerator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +37,6 @@ public class ReservationStreamErrorHandler {
 
 	private final StringRedisTemplate redisTemplate;
 	private final ReservationService reservationService;
-	private final ProcessingOrderGenerator orderGenerator;
 	private final ReservationStreamProperties streamProperties;
 
 	/**
@@ -126,7 +124,7 @@ public class ReservationStreamErrorHandler {
 
 		try {
 			ReservationRequestMessage message = ReservationRequestMessage.fromMap(body);
-			reservationService.handleReservationRequest(message, orderGenerator.next());
+			reservationService.create(message.userEmail(), message.toDto());
 
 			ack(streamKey, recordId);
 			log.info("[XCLAIM] 재처리 성공 email={}, slotId={}", email, slotId);
