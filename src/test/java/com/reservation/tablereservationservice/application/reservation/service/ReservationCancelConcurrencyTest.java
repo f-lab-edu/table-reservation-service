@@ -26,12 +26,12 @@ import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotR
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.fixture.DailySlotCapacityFixture;
+import com.reservation.tablereservationservice.fixture.ReservationFixture;
 import com.reservation.tablereservationservice.fixture.RestaurantFixture;
 import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
 import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -42,9 +42,6 @@ class ReservationCancelConcurrencyTest {
 
 	@Autowired
 	private ReservationOptimisticFacade cancelFacade;
-
-	@Autowired
-	private ReservationService reservationService;
 
 	@Autowired
 	private UserRepository userRepository;
@@ -91,8 +88,15 @@ class ReservationCancelConcurrencyTest {
 				.build()
 		);
 
-		ReservationRequestDto req = new ReservationRequestDto(slot.getSlotId(), VISIT_DATE, 2, "concurrency-test");
-		reservation = reservationService.create(customer.getEmail(), req);
+		reservation = reservationRepository.save(
+			ReservationFixture.confirmed()
+				.userId(customer.getUserId())
+				.slotId(slot.getSlotId())
+				.visitAt(VISIT_DATE.atTime(SLOT_TIME))
+				.partySize(2)
+				.note("concurrency-test")
+				.build()
+		);
 	}
 
 	@AfterEach

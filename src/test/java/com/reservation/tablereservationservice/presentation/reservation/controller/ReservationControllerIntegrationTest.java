@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,10 +17,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 import com.reservation.tablereservationservice.domain.restaurant.Restaurant;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
@@ -66,12 +70,19 @@ class ReservationControllerIntegrationTest {
 	@Autowired
 	private DailySlotCapacityRepository dailySlotCapacityRepository;
 
+	@Autowired
+	private StringRedisTemplate redisTemplate;
+
+	@Autowired
+	private ReservationStreamProperties streamProperties;
+
 	private Long slotId;
 	private String customerAccessToken;
 	private String ownerAccessToken;
 
 	@BeforeEach
 	void setUp() {
+		cleanupRedis();
 		reservationRepository.deleteAll();
 		dailySlotCapacityRepository.deleteAll();
 		restaurantSlotRepository.deleteAll();
@@ -109,6 +120,16 @@ class ReservationControllerIntegrationTest {
 				.version(0L)
 				.build()
 		);
+
+		// Redis 좌석 선점용 remaining key 초기화
+		redisTemplate.opsForValue().set(streamProperties.remainingKey(slotId, BASE_DATE.toString()), "10");
+	}
+
+	private void cleanupRedis() {
+		var remaining = redisTemplate.keys(streamProperties.getRemainingKeyPrefix() + "*");
+		if (remaining != null && !remaining.isEmpty()) redisTemplate.delete(remaining);
+		var pending = redisTemplate.keys(streamProperties.getPendingKeyPrefix() + "*");
+		if (pending != null && !pending.isEmpty()) redisTemplate.delete(pending);
 	}
 
 	@Test
@@ -119,16 +140,18 @@ class ReservationControllerIntegrationTest {
 		given()
 			.contentType(ContentType.JSON)
 			.header("Authorization", "Bearer " + customerAccessToken)
+			.header("Idempotency-Key", UUID.randomUUID().toString())
 			.body(request)
 		.when()
 			.post("/api/reservations")
 		.then()
 			.statusCode(200)
 			.body("code", equalTo(200))
-			.body("message", equalTo("예약 요청 성공"))
+			.body("message", equalTo("예약 접수 성공"))
 			.body("data.reservationId", notNullValue())
 			.body("data.partySize", equalTo(2))
-			.body("data.status", equalTo("CONFIRMED"))
+			.body("data.status", equalTo("PENDING"))
+			.body("data.depositAmount", notNullValue())
 			.body("data.visitAt", startsWith(BASE_VISIT_AT.toString()));
 	}
 
@@ -181,9 +204,9 @@ class ReservationControllerIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("내 예약 목록 조회 성공 - status=CONFIRMED면 확정건만 조회")
-	void getReservations_me_success_onlyConfirmed() {
-		// given: 예약 1건 생성
+	@DisplayName("내 예약 목록 조회 성공 - status=PENDING이면 접수된 예약만 조회")
+	void getReservations_me_success_onlyPending() {
+		// given: 예약 1건 생성 (PENDING 상태)
 		Long reservationId = createReservation(customerAccessToken, slotId, BASE_DATE, 2, "note");
 
 		given()
@@ -191,7 +214,7 @@ class ReservationControllerIntegrationTest {
 			.header("Authorization", "Bearer " + customerAccessToken)
 			.queryParam("fromDate", BASE_DATE.minusDays(1).toString())
 			.queryParam("toDate", BASE_DATE.plusDays(1).toString())
-			.queryParam("status", ReservationStatus.CONFIRMED)
+			.queryParam("status", ReservationStatus.PENDING)
 		.when()
 			.get("/api/reservations/me")
 		.then()
@@ -201,7 +224,7 @@ class ReservationControllerIntegrationTest {
 			.body("data.content.size()", equalTo(1))
 			.body("data.content[0].reservationId", equalTo(reservationId.intValue()))
 			.body("data.content[0].partySize", equalTo(2))
-			.body("data.content[0].status", equalTo("CONFIRMED"))
+			.body("data.content[0].status", equalTo("PENDING"))
 			.body("data.content[0].visitAt", startsWith(BASE_VISIT_AT.toString()));
 	}
 
@@ -212,13 +235,14 @@ class ReservationControllerIntegrationTest {
 		LocalDate confirmedDate = BASE_DATE;
 		LocalDate cancelDate = BASE_DATE.plusDays(1);
 
-		// cancelDate도 slot 생성
+		// cancelDate도 capacity + Redis key 세팅
 		dailySlotCapacityRepository.save(DailySlotCapacityFixture.capacity()
 			.slotId(slotId)
 			.date(cancelDate)
 			.remainingCount(10)
 			.version(0L)
 			.build());
+		redisTemplate.opsForValue().set(streamProperties.remainingKey(slotId, cancelDate.toString()), "10");
 
 		createReservation(customerAccessToken, slotId, confirmedDate, 2, "confirmed");
 
@@ -237,7 +261,7 @@ class ReservationControllerIntegrationTest {
 			.body("code", equalTo(200))
 			.body("message", equalTo("예약 조회 성공"))
 			.body("data.content.size()", equalTo(2))
-			.body("data.content.status", containsInAnyOrder("CONFIRMED", "CANCELED"));
+			.body("data.content.status", containsInAnyOrder("PENDING", "CANCELED"));
 	}
 
 	@Test
@@ -251,6 +275,7 @@ class ReservationControllerIntegrationTest {
 			.header("Authorization", "Bearer " + ownerAccessToken)
 			.queryParam("fromDate", BASE_DATE.minusDays(1).toString())
 			.queryParam("toDate", BASE_DATE.plusDays(1).toString())
+			.queryParam("status", ReservationStatus.PENDING)
 		.when()
 			.get("/api/reservations/owner")
 		.then()
@@ -294,6 +319,7 @@ class ReservationControllerIntegrationTest {
 			given()
 				.contentType(ContentType.JSON)
 				.header("Authorization", "Bearer " + accessToken)
+				.header("Idempotency-Key", UUID.randomUUID().toString())
 				.body(request)
 			.when()
 				.post("/api/reservations")

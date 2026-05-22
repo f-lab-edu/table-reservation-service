@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.reservation.tablereservationservice.application.notification.NotificationService;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
@@ -34,6 +35,8 @@ import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
 import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
+import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
+import com.reservation.tablereservationservice.infrastructure.stream.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,6 +60,15 @@ class ReservationServiceTest {
 	@Mock
 	private RestaurantRepository restaurantRepository;
 
+	@Mock
+	private ReservationPublisher reservationPublisher;
+
+	@Mock
+	private NotificationService notificationService;
+
+	@Mock
+	private TransactionHandler transactionHandler;
+
 	@InjectMocks
 	private ReservationService reservationService;
 
@@ -66,49 +78,50 @@ class ReservationServiceTest {
 	@BeforeEach
 	void setUp() {
 		customer = UserFixture
-			.customer()
-			.userId(1L)
-			.build();
+				.customer()
+				.userId(1L)
+				.build();
 
 		restaurantSlot = RestaurantSlotFixture.slot()
-			.slotId(100L)
-			.time(BASE_TIME)
-			.build();
+				.slotId(100L)
+				.time(BASE_TIME)
+				.build();
 	}
 
 	@Test
-	@DisplayName("예약 요청 성공 - CONFIRMED 저장 + capacity 차감")
+	@DisplayName("예약 요청 성공 - PENDING 저장 + capacity 차감")
 	void create_success() {
 		// given
 		LocalDate date = BASE_DATE;
 		LocalDateTime visitAt = LocalDateTime.of(date, restaurantSlot.getTime());
 		int partySize = 2;
+		String idempotencyKey = "test-idempotency-key";
 
 		DailySlotCapacity capacity = DailySlotCapacityFixture.capacity()
-			.slotId(restaurantSlot.getSlotId())
-			.date(date)
-			.remainingCount(10)
-			.build();
+				.slotId(restaurantSlot.getSlotId())
+				.date(date)
+				.remainingCount(10)
+				.build();
 
 		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), date, partySize, "note");
 
+		given(reservationRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
-		given(reservationRepository.existsByUserIdAndVisitAtAndStatus(
-			customer.getUserId(), visitAt, ReservationStatus.CONFIRMED
+		given(reservationRepository.existsByUserIdAndVisitAtAndStatusIn(
+				eq(customer.getUserId()), eq(visitAt), anyList()
 		)).willReturn(false);
-
 		given(dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), date))
-			.willReturn(Optional.of(capacity));
-
+				.willReturn(Optional.of(capacity));
 		given(reservationRepository.save(any(Reservation.class))).willAnswer(inv -> inv.getArgument(0));
 
 		// when
-		Reservation saved = reservationService.create(customer.getEmail(), req);
+		ReservationCreateResult result = reservationService.reserve(customer.getEmail(), req, idempotencyKey);
 
-		// then (반환값은 핵심만 확인)
-		assertThat(saved.getUserId()).isEqualTo(customer.getUserId());
-		assertThat(saved.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+		// then
+		assertThat(result.reservation().getUserId()).isEqualTo(customer.getUserId());
+		assertThat(result.reservation().getStatus()).isEqualTo(ReservationStatus.PENDING);
+		assertThat(result.depositAmount()).isEqualTo(restaurantSlot.depositAmount(partySize));
 
 		verify(reservationRepository).save(any(Reservation.class));
 
@@ -124,29 +137,30 @@ class ReservationServiceTest {
 		// given
 		LocalDate date = BASE_DATE;
 		LocalDateTime visitAt = LocalDateTime.of(date, restaurantSlot.getTime());
+		String idempotencyKey = "test-idempotency-key";
 
 		DailySlotCapacity capacity = DailySlotCapacityFixture.capacity()
-			.slotId(restaurantSlot.getSlotId())
-			.date(date)
-			.remainingCount(1)
-			.build();
+				.slotId(restaurantSlot.getSlotId())
+				.date(date)
+				.remainingCount(1)
+				.build();
 
 		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), date, 2, "");
 
+		given(reservationRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
-		given(reservationRepository.existsByUserIdAndVisitAtAndStatus(
-			customer.getUserId(), visitAt, ReservationStatus.CONFIRMED
+		given(reservationRepository.existsByUserIdAndVisitAtAndStatusIn(
+				eq(customer.getUserId()), eq(visitAt), anyList()
 		)).willReturn(false);
-
 		given(dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), date))
-			.willReturn(Optional.of(capacity));
+				.willReturn(Optional.of(capacity));
 
 		// when & then
-		assertThatThrownBy(() -> reservationService.create(customer.getEmail(), req))
-			.isInstanceOf(ReservationException.class)
-			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
-				.isEqualTo(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH));
+		assertThatThrownBy(() -> reservationService.reserve(customer.getEmail(), req, idempotencyKey))
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH));
 
 		verify(reservationRepository, never()).save(any());
 		verify(dailySlotCapacityRepository, never()).updateRemainingCount(any(DailySlotCapacity.class));
@@ -161,21 +175,21 @@ class ReservationServiceTest {
 		LocalDateTime visitAt = now.plusDays(2);
 
 		Reservation reservation = ReservationFixture.confirmed()
-			.reservationId(reservationId)
-			.userId(2L) // 다른 유저 예약
-			.slotId(restaurantSlot.getSlotId())
-			.visitAt(visitAt)
-			.partySize(2)
-			.build();
+				.reservationId(reservationId)
+				.userId(2L) // 다른 유저 예약
+				.slotId(restaurantSlot.getSlotId())
+				.visitAt(visitAt)
+				.partySize(2)
+				.build();
 
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
 
 		// when & then
 		assertThatThrownBy(() -> reservationService.cancel(customer.getEmail(), reservationId))
-			.isInstanceOf(ReservationException.class)
-			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
-				.isEqualTo(ErrorCode.RESERVATION_FORBIDDEN));
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESERVATION_FORBIDDEN));
 
 		verifyNoInteractions(dailySlotCapacityRepository);
 		verify(reservationRepository, never()).updateStatus(any());
@@ -190,21 +204,21 @@ class ReservationServiceTest {
 		LocalDateTime visitAt = now.plusDays(2);
 
 		Reservation reservation = ReservationFixture.canceled()
-			.reservationId(reservationId)
-			.userId(customer.getUserId())
-			.slotId(restaurantSlot.getSlotId())
-			.visitAt(visitAt)
-			.partySize(2)
-			.build();
+				.reservationId(reservationId)
+				.userId(customer.getUserId())
+				.slotId(restaurantSlot.getSlotId())
+				.visitAt(visitAt)
+				.partySize(2)
+				.build();
 
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
 
 		// when & then
 		assertThatThrownBy(() -> reservationService.cancel(customer.getEmail(), reservationId))
-			.isInstanceOf(ReservationException.class)
-			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
-				.isEqualTo(ErrorCode.RESERVATION_ALREADY_CANCELED));
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESERVATION_ALREADY_CANCELED));
 
 		verifyNoInteractions(dailySlotCapacityRepository);
 		verify(reservationRepository, never()).updateStatus(any());
@@ -219,21 +233,21 @@ class ReservationServiceTest {
 		LocalDateTime visitAt = now.plusHours(23);
 
 		Reservation reservation = ReservationFixture.confirmed()
-			.reservationId(reservationId)
-			.userId(customer.getUserId())
-			.slotId(restaurantSlot.getSlotId())
-			.visitAt(visitAt)
-			.partySize(2)
-			.build();
+				.reservationId(reservationId)
+				.userId(customer.getUserId())
+				.slotId(restaurantSlot.getSlotId())
+				.visitAt(visitAt)
+				.partySize(2)
+				.build();
 
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
 
 		// when & then
 		assertThatThrownBy(() -> reservationService.cancel(customer.getEmail(), reservationId))
-			.isInstanceOf(ReservationException.class)
-			.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
-				.isEqualTo(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED));
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED));
 
 		verifyNoInteractions(dailySlotCapacityRepository);
 		verify(reservationRepository, never()).updateStatus(any());

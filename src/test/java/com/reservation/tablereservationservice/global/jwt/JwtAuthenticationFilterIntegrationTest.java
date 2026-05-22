@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.domain.user.UserRole;
 import com.reservation.tablereservationservice.global.config.SecurityConfig;
 
@@ -48,6 +49,9 @@ class JwtAuthenticationFilterIntegrationTest {
 
 	@Autowired
 	private JwtProvider jwtProvider;
+
+	@org.springframework.test.context.bean.override.mockito.MockitoBean
+	private UserRepository userRepository;
 
 	@Test
 	@DisplayName("정상 토큰이면 200과 이메일이 반환된다")
