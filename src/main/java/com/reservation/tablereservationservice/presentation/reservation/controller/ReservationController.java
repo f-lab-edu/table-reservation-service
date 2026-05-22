@@ -13,12 +13,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.reservation.tablereservationservice.application.reservation.facade.ReservationOptimisticFacade;
+import com.reservation.tablereservationservice.application.reservation.service.ReservationCreateResult;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.global.annotation.CustomerOnly;
 import com.reservation.tablereservationservice.global.annotation.LoginUser;
 import com.reservation.tablereservationservice.global.annotation.OwnerOnly;
 import com.reservation.tablereservationservice.global.common.CurrentUser;
+import com.reservation.tablereservationservice.global.exception.ErrorCode;
+import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.presentation.common.ApiResponse;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
@@ -41,21 +44,15 @@ public class ReservationController {
 	@PostMapping
 	public ApiResponse<ReservationResponseDto> create(
 		@Valid @RequestBody ReservationRequestDto requestDto,
+		@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
 		@LoginUser CurrentUser user
 	) {
-		Reservation reservation = reservationService.create(user.email(), requestDto);
-		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
+		if (idempotencyKey == null || idempotencyKey.isBlank()) {
+			throw new ReservationException(ErrorCode.MISSING_PARAMETER);
+		}
 
-		return ApiResponse.success("예약 요청 성공", responseDto);
-	}
-
-	@PostMapping("/test")
-	public ApiResponse<Void> create_test(
-		@Valid @RequestBody ReservationRequestDto requestDto,
-		@RequestHeader("X-User-Email") String email
-	) {
-		reservationService.submitReservation(email, requestDto);
-		return ApiResponse.success("예약 요청 접수");
+		ReservationCreateResult result = reservationService.reserve(user.email(), requestDto, idempotencyKey);
+		return ApiResponse.success("예약 접수 성공", ReservationResponseDto.from(result));
 	}
 
 	@CustomerOnly
@@ -65,13 +62,8 @@ public class ReservationController {
 		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
 		@LoginUser CurrentUser user
 	) {
-
 		searchDto.setPageable(pageable);
-		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findMyReservations(
-			user.email(),
-			searchDto
-		);
-
+		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findMyReservations(user.email(), searchDto);
 		return ApiResponse.success("예약 조회 성공", responseDto);
 	}
 
@@ -82,24 +74,15 @@ public class ReservationController {
 		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
 		@LoginUser CurrentUser user
 	) {
-
 		searchDto.setPageable(pageable);
-		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findOwnerReservations(
-			user.email(),
-			searchDto
-		);
-
+		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findOwnerReservations(user.email(), searchDto);
 		return ApiResponse.success("예약 조회 성공", responseDto);
-
 	}
 
 	@CustomerOnly
 	@PostMapping("/{reservationId}/cancel")
 	public ApiResponse<ReservationResponseDto> cancel(@PathVariable Long reservationId, @LoginUser CurrentUser user) {
 		Reservation reservation = reservationOptimisticFacade.cancelWithRetry(user.email(), reservationId);
-		ReservationResponseDto responseDto = ReservationResponseDto.from(reservation);
-
-		return ApiResponse.success("예약 취소 성공", responseDto);
+		return ApiResponse.success("예약 취소 성공", ReservationResponseDto.from(reservation));
 	}
-
 }
