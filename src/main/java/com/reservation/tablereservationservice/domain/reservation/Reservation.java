@@ -15,10 +15,19 @@ public class Reservation {
 	private Integer partySize;
 	private String note;
 	private ReservationStatus status;
+	private String idempotencyKey;
 
 	@Builder
-	public Reservation(Long reservationId, Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
-			String note, ReservationStatus status) {
+	public Reservation(
+			Long reservationId,
+			Long userId,
+			Long slotId,
+			LocalDateTime visitAt,
+			Integer partySize,
+			String note,
+			ReservationStatus status,
+			String idempotencyKey
+	) {
 		this.reservationId = reservationId;
 		this.userId = userId;
 		this.slotId = slotId;
@@ -26,6 +35,15 @@ public class Reservation {
 		this.partySize = partySize;
 		this.note = note;
 		this.status = status;
+		this.idempotencyKey = idempotencyKey;
+	}
+
+	public void confirm() {
+		this.status = ReservationStatus.CONFIRMED;
+	}
+
+	public void fail() {
+		this.status = ReservationStatus.PAYMENT_FAILED;
 	}
 
 	public boolean isOwner(Long userId) {

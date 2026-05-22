@@ -42,11 +42,15 @@ public class RestaurantSlotEntity extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Integer maxCapacity;
 
+	@Column(nullable = false, columnDefinition = "int default 0")
+	private Integer depositPerPerson;
+
 	@Builder
-	public RestaurantSlotEntity(Long restaurantId, LocalTime time, Integer maxCapacity) {
+	public RestaurantSlotEntity(Long restaurantId, LocalTime time, Integer maxCapacity, Integer depositPerPerson) {
 		this.restaurantId = restaurantId;
 		this.time = time;
 		this.maxCapacity = maxCapacity;
+		this.depositPerPerson = depositPerPerson != null ? depositPerPerson : 0;
 	}
 
 }

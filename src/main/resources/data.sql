@@ -31,12 +31,12 @@ VALUES
 -- RESTAURANT_SLOT (restaurant_id=1)
 -- slot 1~4: Consistent Hash Exchange 파티션 테스트용 (슬롯마다 다른 파티션 큐로 라우팅)
 INSERT INTO restaurant_slot
-(restaurant_id, time, max_capacity, created_at, modified_at)
+(restaurant_id, time, max_capacity, deposit_per_person, created_at, modified_at)
 VALUES
-(1, '18:00:00', 10, @now, @now),
-(1, '19:00:00', 10, @now, @now),
-(1, '20:00:00', 10, @now, @now),
-(1, '21:00:00', 10, @now, @now);
+(1, '18:00:00', 10, 5000, @now, @now),
+(1, '19:00:00', 10, 5000, @now, @now),
+(1, '20:00:00', 10, 5000, @now, @now),
+(1, '21:00:00', 10, 5000, @now, @now);
 
 
 -- k6와 동일하게 UTC_DATE() 기준으로 날짜 계산 (KST/UTC 타임존 불일치 방지)

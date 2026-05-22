@@ -33,57 +33,59 @@ public class JpaReservationRepository implements ReservationRepository {
 	}
 
 	@Override
-	public boolean existsByUserIdAndVisitAtAndStatus(
-		Long userId,
-		LocalDateTime visitAt,
-		ReservationStatus reservationStatus
-	) {
-		return reservationEntityRepository.existsByUserIdAndVisitAtAndStatus(userId, visitAt, reservationStatus);
+	public Optional<Reservation> findByIdempotencyKey(String idempotencyKey) {
+		return reservationEntityRepository.findByIdempotencyKey(idempotencyKey)
+				.map(ReservationMapper.INSTANCE::toDomain);
 	}
 
 	@Override
-		public Page<Reservation> findMyReservations(
+	public boolean existsByUserIdAndVisitAtAndStatusIn(Long userId, LocalDateTime visitAt, List<ReservationStatus> statuses) {
+		return reservationEntityRepository.existsByUserIdAndVisitAtAndStatusIn(userId, visitAt, statuses);
+	}
+
+	@Override
+	public Page<Reservation> findMyReservations(
 			Long userId,
 			ReservationStatus status,
 			LocalDateTime from,
 			LocalDateTime to,
 			Pageable pageable
-		) {
-			Page<ReservationEntity> page = (status == null)
+	) {
+		Page<ReservationEntity> page = (status == null)
 				? reservationEntityRepository.findByUserIdAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, from, to, pageable)
 				: reservationEntityRepository.findByUserIdAndStatusAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, status, from, to, pageable);
 
-			return page.map(ReservationMapper.INSTANCE::toDomain);
-		}
+		return page.map(ReservationMapper.INSTANCE::toDomain);
+	}
 
 	@Override
 	public Page<Reservation> findOwnerReservations(
-		List<Long> restaurantIds,
-		ReservationStatus status,
-		LocalDateTime from,
-		LocalDateTime to,
-		Pageable pageable
+			List<Long> restaurantIds,
+			ReservationStatus status,
+			LocalDateTime from,
+			LocalDateTime to,
+			Pageable pageable
 	) {
 		return reservationEntityRepository.findOwnerReservations(restaurantIds, status, from, to, pageable)
-			.map(ReservationMapper.INSTANCE::toDomain);
+				.map(ReservationMapper.INSTANCE::toDomain);
 	}
 
 	@Override
 	public Optional<Reservation> findById(Long reservationId) {
 		return reservationEntityRepository.findById(reservationId)
-			.map(ReservationMapper.INSTANCE::toDomain);
+				.map(ReservationMapper.INSTANCE::toDomain);
 	}
 
 	@Override
 	public Reservation fetchById(Long reservationId) {
 		return findById(reservationId)
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
 	}
 
 	@Override
 	public void updateStatus(Reservation reservation) {
 		ReservationEntity entity = reservationEntityRepository.findById(reservation.getReservationId())
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
 
 		entity.updateStatus(reservation.getStatus());
 		// save() 호출 없음 -> 변경 감지 UPDATE

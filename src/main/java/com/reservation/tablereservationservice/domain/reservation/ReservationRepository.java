@@ -11,7 +11,9 @@ public interface ReservationRepository {
 
 	Reservation save(Reservation reservation);
 
-	boolean existsByUserIdAndVisitAtAndStatus(Long userId, LocalDateTime visitAt, ReservationStatus reservationStatus);
+	Optional<Reservation> findByIdempotencyKey(String idempotencyKey);
+
+	boolean existsByUserIdAndVisitAtAndStatusIn(Long userId, LocalDateTime visitAt, List<ReservationStatus> statuses);
 
 	Page<Reservation> findMyReservations(
 		Long userId,
