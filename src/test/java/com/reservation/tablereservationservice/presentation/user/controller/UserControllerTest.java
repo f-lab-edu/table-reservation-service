@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reservation.tablereservationservice.application.user.service.UserService;
+import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.GlobalExceptionHandler;
 import com.reservation.tablereservationservice.global.exception.UserException;
@@ -44,6 +45,9 @@ class UserControllerTest {
 
 	@MockitoBean
 	private UserService userService;
+
+	@MockitoBean
+	private UserRepository userRepository;
 
 	@Test
 	@DisplayName("회원가입 요청 DTO 검증 실패 시 상세 에러 메시지 포함 400 응답 반환")

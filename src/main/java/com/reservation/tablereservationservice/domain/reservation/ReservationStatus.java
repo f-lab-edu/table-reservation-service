@@ -4,7 +4,8 @@ import lombok.Getter;
 
 @Getter
 public enum ReservationStatus {
-
+	PENDING,
 	CONFIRMED,
-	CANCELED
+	CANCELED,
+	PAYMENT_FAILED
 }

@@ -11,7 +11,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,9 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.reservation.tablereservationservice.application.reservation.facade.ReservationOptimisticFacade;
+import com.reservation.tablereservationservice.domain.user.User;
+import com.reservation.tablereservationservice.application.reservation.service.ReservationCreateResult;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
@@ -59,11 +64,26 @@ class ReservationControllerTest {
 	@MockitoBean
 	private ReservationService reservationService;
 
+	@MockitoBean
+	private ReservationOptimisticFacade reservationOptimisticFacade;
+
+	@MockitoBean
+	private com.reservation.tablereservationservice.domain.user.UserRepository userRepository;
+
+	@BeforeEach
+	void setUpUserMock() {
+		// LoginUserArgumentResolver가 인증된 요청마다 userRepository.findByEmail() 호출
+		given(userRepository.findByEmail(anyString())).willReturn(
+			Optional.of(User.builder().userId(1L).email("customer01@test.com").build())
+		);
+	}
+
 	@Test
 	@DisplayName("예약 요청 성공 - CUSTOMER 권한이면 200 및 응답 바디 반환")
 	void create_success_whenCustomerRole() throws Exception {
 		// given
 		String email = "customer01@test.com";
+		String idempotencyKey = "test-idempotency-key-uuid";
 
 		ReservationRequestDto requestDto = new ReservationRequestDto(
 			10L,
@@ -79,11 +99,12 @@ class ReservationControllerTest {
 			.visitAt(BASE_VISIT_AT)
 			.partySize(2)
 			.note("note")
-			.status(ReservationStatus.CONFIRMED)
+			.status(ReservationStatus.PENDING)
+			.idempotencyKey(idempotencyKey)
 			.build();
 
-		given(reservationService.create(eq(email), any(ReservationRequestDto.class)))
-			.willReturn(reservation);
+		given(reservationService.reserve(eq(email), any(ReservationRequestDto.class), eq(idempotencyKey)))
+			.willReturn(new ReservationCreateResult(reservation, 10000));
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
@@ -95,6 +116,7 @@ class ReservationControllerTest {
 		MvcResult mvcResult = mockMvc.perform(post("/api/reservations")
 				.with(authentication(auth))
 				.contentType(MediaType.APPLICATION_JSON)
+				.header("Idempotency-Key", idempotencyKey)
 				.content(objectMapper.writeValueAsString(requestDto)))
 			.andExpect(status().isOk())
 			.andReturn();
@@ -107,15 +129,16 @@ class ReservationControllerTest {
 		);
 
 		assertThat(response.getCode()).isEqualTo(200);
-		assertThat(response.getMessage()).isEqualTo("예약 요청 성공");
+		assertThat(response.getMessage()).isEqualTo("예약 접수 성공");
 
 		ReservationResponseDto data = response.getData();
 		assertThat(data).isNotNull();
 		assertThat(data.getReservationId()).isEqualTo(999L);
 		assertThat(data.getPartySize()).isEqualTo(2);
-		assertThat(data.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+		assertThat(data.getStatus()).isEqualTo(ReservationStatus.PENDING);
+		assertThat(data.getDepositAmount()).isEqualTo(10000);
 
-		verify(reservationService).create(eq(email), any(ReservationRequestDto.class));
+		verify(reservationService).reserve(eq(email), any(ReservationRequestDto.class), eq(idempotencyKey));
 	}
 
 	@Test
@@ -162,7 +185,7 @@ class ReservationControllerTest {
 		assertThat(errors.get("date")).isEqualTo("예약 날짜는 필수입니다.");
 		assertThat(errors.get("partySize")).isEqualTo("예약 인원은 1명 이상이어야 합니다.");
 
-		verify(reservationService, never()).create(anyString(), any());
+		verify(reservationService, never()).reserve(anyString(), any(), anyString());
 	}
 
 	@Test
@@ -191,7 +214,7 @@ class ReservationControllerTest {
 			.andExpect(status().isForbidden());
 
 		// then
-		verify(reservationService, never()).create(anyString(), any());
+		verify(reservationService, never()).reserve(anyString(), any(), anyString());
 	}
 
 	@Test
@@ -211,7 +234,7 @@ class ReservationControllerTest {
 			.status(ReservationStatus.CANCELED)
 			.build();
 
-		given(reservationService.cancel(eq(email), eq(reservationId)))
+		given(reservationOptimisticFacade.cancelWithRetry(eq(email), eq(reservationId)))
 			.willReturn(canceledReservation);
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
@@ -242,7 +265,7 @@ class ReservationControllerTest {
 		assertThat(data.getReservationId()).isEqualTo(reservationId);
 		assertThat(data.getStatus()).isEqualTo(ReservationStatus.CANCELED);
 
-		verify(reservationService).cancel(eq(email), eq(reservationId));
+		verify(reservationOptimisticFacade).cancelWithRetry(eq(email), eq(reservationId));
 	}
 
 	@Test
@@ -265,7 +288,7 @@ class ReservationControllerTest {
 			.andExpect(status().isForbidden());
 
 		// then
-		verify(reservationService, never()).cancel(anyString(), anyLong());
+		verify(reservationOptimisticFacade, never()).cancelWithRetry(anyString(), anyLong());
 	}
 
 	private <T> ApiResponse<T> readResponse(

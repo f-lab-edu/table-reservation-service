@@ -20,6 +20,7 @@ public class RestaurantSlotFixture {
 	private Long restaurantId = 100L;
 	private LocalTime time = LocalTime.of(19, 0);
 	private int maxCapacity = 10;
+	private int depositPerPerson = 5000;
 
 	public static RestaurantSlotFixture slot() {
 		return new RestaurantSlotFixture();
@@ -29,7 +30,8 @@ public class RestaurantSlotFixture {
 		RestaurantSlot.RestaurantSlotBuilder builder = RestaurantSlot.builder()
 			.restaurantId(restaurantId)
 			.time(time)
-			.maxCapacity(maxCapacity);
+			.maxCapacity(maxCapacity)
+			.depositPerPerson(depositPerPerson);
 
 		if (slotId != null) {
 			builder.slotId(slotId);

@@ -47,18 +47,22 @@ public class ReservationEntity extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private ReservationStatus status;
 
+	@Column(unique = true, length = 36)
+	private String idempotencyKey;
+
 	@Version
 	private Long version;
 
 	@Builder
 	public ReservationEntity(Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
-		String note, ReservationStatus status) {
+		String note, ReservationStatus status, String idempotencyKey) {
 		this.userId = userId;
 		this.slotId = slotId;
 		this.visitAt = visitAt;
 		this.partySize = partySize;
 		this.note = note;
 		this.status = status;
+		this.idempotencyKey = idempotencyKey;
 	}
 
 	public void updateStatus(ReservationStatus status) {

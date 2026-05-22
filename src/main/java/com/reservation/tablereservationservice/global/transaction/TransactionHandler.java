@@ -8,11 +8,26 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class TransactionHandler {
 
 	public void runAfterCommit(Runnable action) {
-		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-			@Override
-			public void afterCommit() {
-				action.run();
-			}
-		});
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					action.run();
+				}
+			});
+		}
+	}
+
+	public void runOnRollback(Runnable action) {
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCompletion(int status) {
+					if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
+						action.run();
+					}
+				}
+			});
+		}
 	}
 }

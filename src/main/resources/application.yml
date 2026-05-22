@@ -8,15 +8,9 @@ server:
   port: 8080
 
 redis:
-  stream:
-    reservation:
-      key-prefix: reservation:stream.
-      partition-count: 4
-      consumer-group: reservation:consumer-group
-      consumer-prefix: consumer-
-      error-stream-key: reservation:error-stream
-      error-consumer-group: reservation:error-consumer-group
-      error-consumer-name: error-consumer-1
-      remaining-key-prefix: "reservation:remaining:"
+  reservation:
+    remaining-key-prefix: "reservation:remaining:"
+    pending-key-prefix: "reservation:temporary:"
+    pending-key-ttl-seconds: 900  # 15분 (스케줄러 만료 임계 10분 + 주기 5분 이상)
   pubsub:
     notification-channel: notification:events
