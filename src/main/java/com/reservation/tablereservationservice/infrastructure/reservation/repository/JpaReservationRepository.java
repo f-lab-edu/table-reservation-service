@@ -39,6 +39,12 @@ public class JpaReservationRepository implements ReservationRepository {
 	}
 
 	@Override
+	public Reservation fetchByIdempotencyKey(String idempotencyKey) {
+		return findByIdempotencyKey(idempotencyKey)
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
+	}
+
+	@Override
 	public boolean existsByUserIdAndVisitAtAndStatusIn(Long userId, LocalDateTime visitAt, List<ReservationStatus> statuses) {
 		return reservationEntityRepository.existsByUserIdAndVisitAtAndStatusIn(userId, visitAt, statuses);
 	}
@@ -89,6 +95,14 @@ public class JpaReservationRepository implements ReservationRepository {
 
 		entity.updateStatus(reservation.getStatus());
 		// save() 호출 없음 -> 변경 감지 UPDATE
+	}
+
+	@Override
+	public List<Reservation> findPendingBefore(LocalDateTime createdBefore) {
+		return reservationEntityRepository.findPendingBefore(createdBefore)
+				.stream()
+				.map(ReservationMapper.INSTANCE::toDomain)
+				.toList();
 	}
 
 	@Override
