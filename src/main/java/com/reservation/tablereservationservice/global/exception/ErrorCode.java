@@ -40,9 +40,17 @@ public enum ErrorCode {
 	RESERVATION_NOT_AVAILABLE("다른 예약이 선점되었습니다.", HttpStatus.CONFLICT),
 	RESERVATION_CONCURRENCY_ERROR("현재 예약 요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해주세요.", HttpStatus.CONFLICT),
 
+	// 결제 오류
+	PAYMENT_AMOUNT_MISMATCH("결제 금액이 예약금과 일치하지 않습니다.", HttpStatus.BAD_REQUEST),
+	PAYMENT_RESERVATION_FAILED("이미 만료된 예약입니다.", HttpStatus.BAD_REQUEST),
+
+	// 503 Service Unavailable
+	TOSS_API_UNAVAILABLE("결제 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE),
+
 	// 500 Internal Server Error
 	INTERNAL_SERVER_ERROR("서버 내부 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
 
 	private final String message;
 	private final HttpStatus status;
+
 	}
