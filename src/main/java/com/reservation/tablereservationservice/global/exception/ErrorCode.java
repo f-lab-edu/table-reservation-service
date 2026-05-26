@@ -43,6 +43,7 @@ public enum ErrorCode {
 	// 결제 오류
 	PAYMENT_AMOUNT_MISMATCH("결제 금액이 예약금과 일치하지 않습니다.", HttpStatus.BAD_REQUEST),
 	PAYMENT_RESERVATION_FAILED("이미 만료된 예약입니다.", HttpStatus.BAD_REQUEST),
+	PAYMENT_FAILED("결제에 실패했습니다.", HttpStatus.BAD_REQUEST),
 
 	// 503 Service Unavailable
 	TOSS_API_UNAVAILABLE("결제 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE),
