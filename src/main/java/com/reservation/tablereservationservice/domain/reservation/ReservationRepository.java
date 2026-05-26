@@ -39,6 +39,8 @@ public interface ReservationRepository {
 
 	void updateStatus(Reservation reservation);
 
+	void updatePaymentKey(Reservation reservation);
+
 	List<Reservation> findPendingBefore(LocalDateTime createdBefore);
 
 	void deleteAll();
