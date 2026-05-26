@@ -1,24 +1,18 @@
 package com.reservation.tablereservationservice.application.payment;
 
-import com.reservation.tablereservationservice.presentation.payment.dto.PaymentConfirmRequestDto;
-
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaymentRequest {
 
-	private String paymentKey;
-	private String orderId;
-	private Integer amount;
+	private final String paymentKey;
+	private final String orderId;
+	private final Integer amount;
 
-	public static PaymentRequest from(PaymentConfirmRequestDto requestDto) {
-		PaymentRequest request = new PaymentRequest();
-		request.paymentKey = requestDto.getPaymentKey();
-		request.orderId = requestDto.getOrderId();
-		request.amount = requestDto.getAmount();
-		return request;
+	public static PaymentRequest of(String paymentKey, String orderId, Integer amount) {
+		return new PaymentRequest(paymentKey, orderId, amount);
 	}
 }
