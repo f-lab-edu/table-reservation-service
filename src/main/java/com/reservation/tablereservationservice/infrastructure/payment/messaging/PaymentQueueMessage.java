@@ -20,7 +20,7 @@ public class PaymentQueueMessage {
 	private Integer amount;
 	private LocalDateTime approvedAt;
 
-	public static PaymentQueueMessage of(Reservation reservation, String orderId, PaymentResult result) {
+	public static PaymentQueueMessage ofConfirmed(Reservation reservation, String orderId, PaymentResult result) {
 		PaymentQueueMessage message = new PaymentQueueMessage();
 		message.reservationId = reservation.getReservationId();
 		message.idempotencyKey = orderId;
