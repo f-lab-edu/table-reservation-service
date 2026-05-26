@@ -7,6 +7,15 @@ spring:
 server:
   port: 8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+
 redis:
   reservation:
     remaining-key-prefix: "reservation:remaining:"
@@ -14,3 +23,33 @@ redis:
     pending-key-ttl-seconds: 900  # 15분 (스케줄러 만료 임계 10분 + 주기 5분 이상)
   pubsub:
     notification-channel: notification:events
+
+rabbitmq:
+  payment:
+    exchange: payment-exchange
+    queue: payment-queue
+    routing-key: payment.confirm
+    dlx: payment-dlx
+    dlq: payment-dlq
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      tossPayment:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException  # 4xx는 CB 실패로 집계 안 함
+  retry:
+    instances:
+      tossPayment:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - java.io.IOException                                      # 네트워크 단절
+          - org.springframework.web.client.ResourceAccessException   # 연결 타임아웃
+          - org.springframework.web.client.HttpServerErrorException  # Toss 5xx
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException  # 4xx 재시도 금지
