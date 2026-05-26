@@ -27,7 +27,6 @@ import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
-import com.reservation.tablereservationservice.infrastructure.redis.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
@@ -46,7 +45,6 @@ public class ReservationService {
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationRepository reservationRepository;
 	private final RestaurantRepository restaurantRepository;
-	private final ReservationPublisher reservationPublisher;
 	private final NotificationService notificationService;
 	private final TransactionHandler transactionHandler;
 
@@ -56,12 +54,7 @@ public class ReservationService {
 		RestaurantSlot slot = restaurantSlotRepository.fetchById(requestDto.getSlotId());
 		LocalDateTime visitAt = LocalDateTime.of(requestDto.getDate(), slot.getTime());
 
-		validatePartySize(requestDto.getPartySize(), slot);
 		validateDuplicatedTime(user.getUserId(), visitAt);
-
-		reservationPublisher.holdSeat(slot.getSlotId(), requestDto.getDate(), requestDto.getPartySize());
-		transactionHandler.runOnRollback(() ->
-				reservationPublisher.releaseSeat(slot.getSlotId(), requestDto.getDate(), requestDto.getPartySize()));
 
 		DailySlotCapacity capacity = dailySlotCapacityRepository
 				.findBySlotIdAndDate(slot.getSlotId(), requestDto.getDate())
@@ -78,8 +71,8 @@ public class ReservationService {
 				.status(ReservationStatus.PENDING)
 				.build();
 
-		reservationRepository.save(reservation);
-		return new ReservationCreateResult(reservation, slot.depositAmount(requestDto.getPartySize()));
+		Reservation saved = reservationRepository.save(reservation);
+		return new ReservationCreateResult(saved, slot.depositAmount(requestDto.getPartySize()));
 	}
 
 	@Transactional(readOnly = true)
@@ -158,12 +151,6 @@ public class ReservationService {
 		if (reservationRepository.existsByUserIdAndVisitAtAndStatusIn(
 				userId, visitAt, List.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED))) {
 			throw new ReservationException(ErrorCode.RESERVATION_DUPLICATED_TIME);
-		}
-	}
-
-	private void validatePartySize(int partySize, RestaurantSlot slot) {
-		if (!slot.canAcceptPartySize(partySize)) {
-			throw new ReservationException(ErrorCode.INVALID_PARTY_SIZE);
 		}
 	}
 

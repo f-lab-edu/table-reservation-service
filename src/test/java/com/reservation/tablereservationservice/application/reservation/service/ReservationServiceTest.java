@@ -36,7 +36,6 @@ import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
-import com.reservation.tablereservationservice.infrastructure.stream.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,9 +58,6 @@ class ReservationServiceTest {
 
 	@Mock
 	private RestaurantRepository restaurantRepository;
-
-	@Mock
-	private ReservationPublisher reservationPublisher;
 
 	@Mock
 	private NotificationService notificationService;
@@ -105,7 +101,6 @@ class ReservationServiceTest {
 
 		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), date, partySize, "note");
 
-		given(reservationRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
 		given(reservationRepository.existsByUserIdAndVisitAtAndStatusIn(
@@ -147,7 +142,6 @@ class ReservationServiceTest {
 
 		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), date, 2, "");
 
-		given(reservationRepository.findByIdempotencyKey(idempotencyKey)).willReturn(Optional.empty());
 		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
 		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
 		given(reservationRepository.existsByUserIdAndVisitAtAndStatusIn(

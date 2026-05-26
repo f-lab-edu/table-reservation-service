@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.reservation.tablereservationservice.application.reservation.facade.ReservationFacade;
 import com.reservation.tablereservationservice.application.reservation.facade.ReservationOptimisticFacade;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationCreateResult;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
@@ -38,29 +39,30 @@ import lombok.RequiredArgsConstructor;
 public class ReservationController {
 
 	private final ReservationService reservationService;
+	private final ReservationFacade reservationFacade;
 	private final ReservationOptimisticFacade reservationOptimisticFacade;
 
 	@CustomerOnly
 	@PostMapping
 	public ApiResponse<ReservationResponseDto> create(
-		@Valid @RequestBody ReservationRequestDto requestDto,
-		@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-		@LoginUser CurrentUser user
+			@Valid @RequestBody ReservationRequestDto requestDto,
+			@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+			@LoginUser CurrentUser user
 	) {
 		if (idempotencyKey == null || idempotencyKey.isBlank()) {
 			throw new ReservationException(ErrorCode.MISSING_PARAMETER);
 		}
 
-		ReservationCreateResult result = reservationService.reserve(user.email(), requestDto, idempotencyKey);
+		ReservationCreateResult result = reservationFacade.reserve(user.email(), requestDto, idempotencyKey);
 		return ApiResponse.success("예약 접수 성공", ReservationResponseDto.from(result));
 	}
 
 	@CustomerOnly
 	@GetMapping("/me")
 	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findMyReservations(
-		@ModelAttribute ReservationSearchDto searchDto,
-		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
-		@LoginUser CurrentUser user
+			@ModelAttribute ReservationSearchDto searchDto,
+			@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
+			@LoginUser CurrentUser user
 	) {
 		searchDto.setPageable(pageable);
 		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findMyReservations(user.email(), searchDto);
@@ -70,9 +72,9 @@ public class ReservationController {
 	@OwnerOnly
 	@GetMapping("/owner")
 	public ApiResponse<PageResponseDto<ReservationListResponseDto>> findOwnerReservations(
-		@ModelAttribute ReservationSearchDto searchDto,
-		@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
-		@LoginUser CurrentUser user
+			@ModelAttribute ReservationSearchDto searchDto,
+			@PageableDefault(page = 0, size = 10, sort = "visitAt", direction = Sort.Direction.DESC) Pageable pageable,
+			@LoginUser CurrentUser user
 	) {
 		searchDto.setPageable(pageable);
 		PageResponseDto<ReservationListResponseDto> responseDto = reservationService.findOwnerReservations(user.email(), searchDto);

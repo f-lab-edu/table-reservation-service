@@ -35,6 +35,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.reservation.tablereservationservice.application.reservation.facade.ReservationFacade;
 import com.reservation.tablereservationservice.application.reservation.facade.ReservationOptimisticFacade;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationCreateResult;
@@ -63,6 +64,9 @@ class ReservationControllerTest {
 
 	@MockitoBean
 	private ReservationService reservationService;
+
+	@MockitoBean
+	private ReservationFacade reservationFacade;
 
 	@MockitoBean
 	private ReservationOptimisticFacade reservationOptimisticFacade;
@@ -103,7 +107,7 @@ class ReservationControllerTest {
 			.idempotencyKey(idempotencyKey)
 			.build();
 
-		given(reservationService.reserve(eq(email), any(ReservationRequestDto.class), eq(idempotencyKey)))
+		given(reservationFacade.reserve(eq(email), any(ReservationRequestDto.class), eq(idempotencyKey)))
 			.willReturn(new ReservationCreateResult(reservation, 10000));
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
@@ -138,7 +142,7 @@ class ReservationControllerTest {
 		assertThat(data.getStatus()).isEqualTo(ReservationStatus.PENDING);
 		assertThat(data.getDepositAmount()).isEqualTo(10000);
 
-		verify(reservationService).reserve(eq(email), any(ReservationRequestDto.class), eq(idempotencyKey));
+		verify(reservationFacade).reserve(eq(email), any(ReservationRequestDto.class), eq(idempotencyKey));
 	}
 
 	@Test
@@ -185,7 +189,7 @@ class ReservationControllerTest {
 		assertThat(errors.get("date")).isEqualTo("예약 날짜는 필수입니다.");
 		assertThat(errors.get("partySize")).isEqualTo("예약 인원은 1명 이상이어야 합니다.");
 
-		verify(reservationService, never()).reserve(anyString(), any(), anyString());
+		verify(reservationFacade, never()).reserve(anyString(), any(), anyString());
 	}
 
 	@Test
@@ -214,7 +218,7 @@ class ReservationControllerTest {
 			.andExpect(status().isForbidden());
 
 		// then
-		verify(reservationService, never()).reserve(anyString(), any(), anyString());
+		verify(reservationFacade, never()).reserve(anyString(), any(), anyString());
 	}
 
 	@Test
