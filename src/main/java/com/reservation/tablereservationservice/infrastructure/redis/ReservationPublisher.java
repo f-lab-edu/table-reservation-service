@@ -1,4 +1,4 @@
-package com.reservation.tablereservationservice.infrastructure.stream;
+package com.reservation.tablereservationservice.infrastructure.redis;
 
 import java.time.LocalDate;
 import java.util.List;

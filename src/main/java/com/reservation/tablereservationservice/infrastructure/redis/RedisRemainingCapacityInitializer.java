@@ -1,4 +1,4 @@
-package com.reservation.tablereservationservice.infrastructure.stream;
+package com.reservation.tablereservationservice.infrastructure.redis;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Order(1) // Consumer 구독(Order=2) 보다 먼저 실행되어야 한다.
+@Order(1) // Consumer 구독(Order=2) 보다 먼저 실행
 public class RedisRemainingCapacityInitializer implements ApplicationRunner {
 
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
