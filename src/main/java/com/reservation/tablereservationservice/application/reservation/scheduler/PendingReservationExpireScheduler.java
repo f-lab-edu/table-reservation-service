@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
@@ -21,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 public class PendingReservationExpireScheduler {
 
 	private final ReservationRepository reservationRepository;
+	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationPublisher reservationPublisher;
 	private final ReservationStreamProperties streamProperties;
 
@@ -38,6 +40,14 @@ public class PendingReservationExpireScheduler {
 		for (Reservation reservation : expired) {
 			reservation.fail();
 			reservationRepository.updateStatus(reservation);
+
+			dailySlotCapacityRepository
+					.findBySlotIdAndDate(reservation.getSlotId(), reservation.getVisitAt().toLocalDate())
+					.ifPresent(capacity -> {
+						capacity.increase(reservation.getPartySize());
+						dailySlotCapacityRepository.updateRemainingCount(capacity);
+					});
+
 			reservationPublisher.releaseSeat(
 					reservation.getSlotId(),
 					reservation.getVisitAt().toLocalDate(),
