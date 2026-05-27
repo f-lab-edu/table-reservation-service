@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
@@ -36,6 +37,12 @@ public class JpaReservationRepository implements ReservationRepository {
 	public Optional<Reservation> findByIdempotencyKey(String idempotencyKey) {
 		return reservationEntityRepository.findByIdempotencyKey(idempotencyKey)
 				.map(ReservationMapper.INSTANCE::toDomain);
+	}
+
+	@Override
+	public Reservation fetchByIdempotencyKey(String idempotencyKey) {
+		return findByIdempotencyKey(idempotencyKey)
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
 	}
 
 	@Override
@@ -83,12 +90,27 @@ public class JpaReservationRepository implements ReservationRepository {
 	}
 
 	@Override
+	@Transactional
 	public void updateStatus(Reservation reservation) {
 		ReservationEntity entity = reservationEntityRepository.findById(reservation.getReservationId())
 				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
-
 		entity.updateStatus(reservation.getStatus());
-		// save() 호출 없음 -> 변경 감지 UPDATE
+	}
+
+	@Override
+	@Transactional
+	public void updatePaymentKey(Reservation reservation) {
+		ReservationEntity entity = reservationEntityRepository.findById(reservation.getReservationId())
+				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
+		entity.updatePaymentKey(reservation.getPaymentKey());
+	}
+
+	@Override
+	public List<Reservation> findPendingBefore(LocalDateTime createdBefore) {
+		return reservationEntityRepository.findPendingBefore(createdBefore)
+				.stream()
+				.map(ReservationMapper.INSTANCE::toDomain)
+				.toList();
 	}
 
 	@Override

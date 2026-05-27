@@ -1,12 +1,11 @@
-package com.reservation.tablereservationservice.infrastructure.stream;
+package com.reservation.tablereservationservice.application.reservation.scheduler;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
@@ -19,27 +18,24 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Order(1) // Consumer 구독(Order=2) 보다 먼저 실행되어야 한다.
-public class RedisRemainingCapacityInitializer implements ApplicationRunner {
+public class RedisReconciliationScheduler {
 
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final StringRedisTemplate redisTemplate;
 	private final ReservationStreamProperties streamProperties;
 
-	/**
-	 * 앱 시작 시 오늘 이후의 모든 daily_slot_capacity를 Redis에 적재한다.
-	 */
-	@Override
-	public void run(ApplicationArguments args) {
-		LocalDate today = LocalDate.now();
-		List<DailySlotCapacity> capacities = dailySlotCapacityRepository.findAllFromDate(today);
+	@Scheduled(cron = "0 0 3 * * *") // 매일 새벽 3시
+	public void syncCapacityToRedis() {
+		List<DailySlotCapacity> capacities = dailySlotCapacityRepository.findAllFromDate(LocalDate.now());
+		if (capacities.isEmpty()) {
+			return;
+		}
 
 		for (DailySlotCapacity capacity : capacities) {
 			String key = streamProperties.remainingKey(capacity.getSlotId(), capacity.getDate().toString());
-			String value = String.valueOf(capacity.getRemainingCount());
-			redisTemplate.opsForValue().set(key, value);
+			redisTemplate.opsForValue().set(key, String.valueOf(capacity.getRemainingCount()), 7, TimeUnit.DAYS);
 		}
 
-		log.info("[RedisInit] 잔여 좌석 초기화 완료: {}건 (기준일={})", capacities.size(), today);
+		log.info("[REDIS_RECONCILE] Redis 좌석 재동기화 완료 count={}", capacities.size());
 	}
 }

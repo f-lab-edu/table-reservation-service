@@ -50,12 +50,17 @@ public class ReservationEntity extends BaseTimeEntity {
 	@Column(unique = true, length = 36)
 	private String idempotencyKey;
 
+	@Column(length = 200)
+	private String paymentKey;
+
 	@Version
 	private Long version;
 
 	@Builder
-	public ReservationEntity(Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
-		String note, ReservationStatus status, String idempotencyKey) {
+	public ReservationEntity(
+			Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
+			String note, ReservationStatus status, String idempotencyKey, String paymentKey
+	) {
 		this.userId = userId;
 		this.slotId = slotId;
 		this.visitAt = visitAt;
@@ -63,9 +68,14 @@ public class ReservationEntity extends BaseTimeEntity {
 		this.note = note;
 		this.status = status;
 		this.idempotencyKey = idempotencyKey;
+		this.paymentKey = paymentKey;
 	}
 
 	public void updateStatus(ReservationStatus status) {
-	    this.status = status;
+		this.status = status;
+	}
+
+	public void updatePaymentKey(String paymentKey) {
+		this.paymentKey = paymentKey;
 	}
 }

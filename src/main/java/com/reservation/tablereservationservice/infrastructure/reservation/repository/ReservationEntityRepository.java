@@ -1,9 +1,8 @@
 package com.reservation.tablereservationservice.infrastructure.reservation.repository;
 
 import java.time.LocalDateTime;
-import java.util.List;
-
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -52,4 +51,7 @@ public interface ReservationEntityRepository extends JpaRepository<ReservationEn
 		@Param("to") LocalDateTime to,
 		Pageable pageable
 	);
+
+	@Query("select r from ReservationEntity r where r.status = 'PENDING' and r.createdAt < :createdBefore")
+	List<ReservationEntity> findPendingBefore(@Param("createdBefore") LocalDateTime createdBefore);
 }

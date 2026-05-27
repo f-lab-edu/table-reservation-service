@@ -16,6 +16,7 @@ public class Reservation {
 	private String note;
 	private ReservationStatus status;
 	private String idempotencyKey;
+	private String paymentKey;
 
 	@Builder
 	public Reservation(
@@ -26,7 +27,8 @@ public class Reservation {
 			Integer partySize,
 			String note,
 			ReservationStatus status,
-			String idempotencyKey
+			String idempotencyKey,
+			String paymentKey
 	) {
 		this.reservationId = reservationId;
 		this.userId = userId;
@@ -36,6 +38,11 @@ public class Reservation {
 		this.note = note;
 		this.status = status;
 		this.idempotencyKey = idempotencyKey;
+		this.paymentKey = paymentKey;
+	}
+
+	public void recordPaymentKey(String paymentKey) {
+		this.paymentKey = paymentKey;
 	}
 
 	public void confirm() {
@@ -66,5 +73,4 @@ public class Reservation {
 	public void cancel() {
 		this.status = ReservationStatus.CANCELED;
 	}
-
 }

@@ -13,14 +13,9 @@ import lombok.Setter;
 public class ReservationStreamProperties {
 
 	private String remainingKeyPrefix;
-	private String pendingKeyPrefix;
-	private int pendingKeyTtlSeconds;
+	private int pendingExpireThresholdSeconds;
 
 	public String remainingKey(Long slotId, String date) {
 		return remainingKeyPrefix + slotId + ":" + date;
-	}
-
-	public String pendingKey(Long userId, Long slotId, String date) {
-		return pendingKeyPrefix + userId + ":" + slotId + ":" + date;
 	}
 }

@@ -25,6 +25,12 @@ public class ReservationFixture {
 	private int partySize = 2;
 	private String note = "note";
 	private ReservationStatus status = ReservationStatus.CONFIRMED;
+	private String idempotencyKey = null;
+	private String paymentKey = null;
+
+	public static ReservationFixture pending() {
+		return new ReservationFixture().status(ReservationStatus.PENDING);
+	}
 
 	public static ReservationFixture confirmed() {
 		return new ReservationFixture().status(ReservationStatus.CONFIRMED);
@@ -34,6 +40,10 @@ public class ReservationFixture {
 		return new ReservationFixture().status(ReservationStatus.CANCELED);
 	}
 
+	public static ReservationFixture paymentFailed() {
+		return new ReservationFixture().status(ReservationStatus.PAYMENT_FAILED);
+	}
+
 	public Reservation build() {
 		Reservation.ReservationBuilder builder = Reservation.builder()
 			.userId(userId)
@@ -41,7 +51,9 @@ public class ReservationFixture {
 			.visitAt(visitAt)
 			.partySize(partySize)
 			.note(note)
-			.status(status);
+			.status(status)
+			.idempotencyKey(idempotencyKey)
+			.paymentKey(paymentKey);
 
 		if (reservationId != null) {
 			builder.reservationId(reservationId);

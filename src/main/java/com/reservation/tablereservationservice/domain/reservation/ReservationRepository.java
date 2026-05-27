@@ -2,16 +2,18 @@ package com.reservation.tablereservationservice.domain.reservation;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import java.util.Optional;
 
 public interface ReservationRepository {
 
 	Reservation save(Reservation reservation);
 
 	Optional<Reservation> findByIdempotencyKey(String idempotencyKey);
+
+	Reservation fetchByIdempotencyKey(String idempotencyKey);
 
 	boolean existsByUserIdAndVisitAtAndStatusIn(Long userId, LocalDateTime visitAt, List<ReservationStatus> statuses);
 
@@ -36,6 +38,10 @@ public interface ReservationRepository {
 	Reservation fetchById(Long reservationId);
 
 	void updateStatus(Reservation reservation);
+
+	void updatePaymentKey(Reservation reservation);
+
+	List<Reservation> findPendingBefore(LocalDateTime createdBefore);
 
 	void deleteAll();
 }

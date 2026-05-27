@@ -7,10 +7,52 @@ spring:
 server:
   port: 8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+
 redis:
   reservation:
     remaining-key-prefix: "reservation:remaining:"
-    pending-key-prefix: "reservation:temporary:"
-    pending-key-ttl-seconds: 900  # 15분 (스케줄러 만료 임계 10분 + 주기 5분 이상)
+    pending-expire-threshold-seconds: 600  # Toss 결제 승인 만료(10분)와 동기화
+    pending-expire-scheduler-seconds: 60   # 스케줄러 실행 주기: 1분마다 체크
   pubsub:
     notification-channel: notification:events
+
+rabbitmq:
+  payment:
+    exchange: payment-exchange
+    queue: payment-queue
+    routing-key: payment.confirm
+    dlx: payment-dlx
+    dlq: payment-dlq
+
+resilience4j:
+  circuitbreaker:
+    circuit-breaker-aspect-order: 1  # CB가 outer, Retry가 inner — 재시도 소진 후 CB가 결과 집계
+    instances:
+      tossPayment:
+        sliding-window-size: 10                                      # 최근 10번 호출 기준으로 판단
+        failure-rate-threshold: 50                                   # 실패율 50% 초과 시 OPEN
+        wait-duration-in-open-state: 10s                             # OPEN 후 10초 대기 후 HALF_OPEN
+        permitted-number-of-calls-in-half-open-state: 3              # HALF_OPEN에서 3번 테스트
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException         # 4xx: CB 실패 집계 제외
+          - com.reservation.tablereservationservice.global.exception.PaymentException  # 유저 과실(카드거절 등): CB 실패 집계 제외
+  retry:
+    retry-aspect-order: 2
+    instances:
+      tossPayment:
+        max-attempts: 3
+        wait-duration: 1s
+        retry-exceptions:
+          - java.io.IOException                                             # 네트워크 단절
+          - org.springframework.web.client.ResourceAccessException          # 연결 타임아웃
+          - org.springframework.web.client.HttpServerErrorException         # Toss 5xx
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException         # 4xx 재시도 금지
