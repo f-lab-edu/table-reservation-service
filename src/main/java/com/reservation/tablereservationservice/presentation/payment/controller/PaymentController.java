@@ -23,9 +23,9 @@ public class PaymentController {
 	private final PaymentService paymentService;
 
 	@CustomerOnly
-	@PostMapping("/confirm")
+	@PostMapping("/approve")
 	public ApiResponse<Void> confirm(@Valid @RequestBody PaymentConfirmRequestDto requestDto, @LoginUser CurrentUser user) {
-		paymentService.confirmPayment(user.userId(), requestDto);
+		paymentService.approve(user.userId(), requestDto);
 		return ApiResponse.success("예약 확정 중입니다.");
 	}
 }

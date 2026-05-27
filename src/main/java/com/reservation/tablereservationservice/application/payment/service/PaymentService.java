@@ -32,7 +32,7 @@ public class PaymentService {
 	private final PaymentClient paymentClient;
 	private final PaymentQueuePublisher paymentQueuePublisher;
 
-	public void confirmPayment(Long userId, PaymentConfirmRequestDto requestDto) {
+	public void approve(Long userId, PaymentConfirmRequestDto requestDto) {
 		Reservation reservation = reservationRepository.fetchByIdempotencyKey(requestDto.getOrderId());
 
 		validateOwner(reservation, userId);
