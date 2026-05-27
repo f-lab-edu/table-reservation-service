@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -126,10 +127,8 @@ class ReservationControllerIntegrationTest {
 	}
 
 	private void cleanupRedis() {
-		var remaining = redisTemplate.keys(streamProperties.getRemainingKeyPrefix() + "*");
+		Set<String> remaining = redisTemplate.keys(streamProperties.getRemainingKeyPrefix() + "*");
 		if (remaining != null && !remaining.isEmpty()) redisTemplate.delete(remaining);
-		var pending = redisTemplate.keys(streamProperties.getPendingKeyPrefix() + "*");
-		if (pending != null && !pending.isEmpty()) redisTemplate.delete(pending);
 	}
 
 	@Test

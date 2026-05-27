@@ -53,12 +53,12 @@ public class PendingReservationExpireScheduler {
 			return;
 		}
 
-		if (!tryRecoverFromToss(reservation)) {
+		if (!recoverIfApproved(reservation)) {
 			failReservation(reservation);
 		}
 	}
 
-	private boolean tryRecoverFromToss(Reservation reservation) {
+	private boolean recoverIfApproved(Reservation reservation) {
 		try {
 			PaymentResult result = paymentClient.queryByPaymentKey(reservation.getPaymentKey());
 			if (!result.isDone()) {
