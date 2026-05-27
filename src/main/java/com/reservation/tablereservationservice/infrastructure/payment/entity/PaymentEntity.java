@@ -27,13 +27,13 @@ public class PaymentEntity extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long paymentId;
 
-	@Column(nullable = false)
+	@Column(unique = true, nullable = false)
 	private Long reservationId;
 
 	@Column(unique = true, nullable = false, length = 36)
 	private String idempotencyKey;
 
-	@Column(nullable = false)
+	@Column(nullable = false, length = 200)
 	private String paymentKey;
 
 	@Column(nullable = false)
