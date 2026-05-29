@@ -60,7 +60,13 @@ public class JpaReservationRepository implements ReservationRepository {
 	) {
 		Page<ReservationEntity> page = (status == null)
 				? reservationEntityRepository.findByUserIdAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, from, to, pageable)
-				: reservationEntityRepository.findByUserIdAndStatusAndVisitAtGreaterThanEqualAndVisitAtLessThan(userId, status, from, to, pageable);
+				: reservationEntityRepository.findByUserIdAndStatusAndVisitAtGreaterThanEqualAndVisitAtLessThan(
+				userId,
+				status,
+				from,
+				to,
+				pageable
+		);
 
 		return page.map(ReservationMapper.INSTANCE::toDomain);
 	}
@@ -91,10 +97,8 @@ public class JpaReservationRepository implements ReservationRepository {
 
 	@Override
 	@Transactional
-	public void updateStatus(Reservation reservation) {
-		ReservationEntity entity = reservationEntityRepository.findById(reservation.getReservationId())
-				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Reservation"));
-		entity.updateStatus(reservation.getStatus());
+	public int updateStatusConditional(Long id, ReservationStatus from, ReservationStatus to) {
+		return reservationEntityRepository.updateStatusConditional(id, from, to);
 	}
 
 	@Override
@@ -108,6 +112,14 @@ public class JpaReservationRepository implements ReservationRepository {
 	@Override
 	public List<Reservation> findPendingBefore(LocalDateTime createdBefore) {
 		return reservationEntityRepository.findPendingBefore(createdBefore)
+				.stream()
+				.map(ReservationMapper.INSTANCE::toDomain)
+				.toList();
+	}
+
+	@Override
+	public List<Reservation> findCancelPendingBefore(LocalDateTime createdBefore) {
+		return reservationEntityRepository.findCancelPendingBefore(createdBefore)
 				.stream()
 				.map(ReservationMapper.INSTANCE::toDomain)
 				.toList();

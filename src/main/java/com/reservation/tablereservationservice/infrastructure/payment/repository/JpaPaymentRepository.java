@@ -1,5 +1,7 @@
 package com.reservation.tablereservationservice.infrastructure.payment.repository;
 
+import java.util.Optional;
+
 import org.springframework.stereotype.Repository;
 
 import com.reservation.tablereservationservice.domain.payment.Payment;
@@ -19,5 +21,11 @@ public class JpaPaymentRepository implements PaymentRepository {
 	public Payment save(Payment payment) {
 		PaymentEntity saved = paymentEntityRepository.save(PaymentMapper.INSTANCE.toEntity(payment));
 		return PaymentMapper.INSTANCE.toDomain(saved);
+	}
+
+	@Override
+	public Optional<Payment> findByReservationId(Long reservationId) {
+		return paymentEntityRepository.findByReservationId(reservationId)
+				.map(PaymentMapper.INSTANCE::toDomain);
 	}
 }
