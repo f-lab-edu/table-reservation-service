@@ -1,5 +1,7 @@
 package com.reservation.tablereservationservice.infrastructure.payment.client;
 
+import java.util.Map;
+
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -23,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 public class TossPaymentClient implements PaymentClient {
 
 	private static final String ALREADY_PROCESSED = "ALREADY_PROCESSED_PAYMENT";
+	private static final String ALREADY_CANCELED = "ALREADY_CANCELED_PAYMENT";
 
 	private final TossPaymentProperties properties;
 	private final RestClient tossRestClient;
@@ -64,6 +67,33 @@ public class TossPaymentClient implements PaymentClient {
 		}
 
 		return result;
+	}
+
+	@Override
+	@CircuitBreaker(name = "tossPayment")
+	@Retry(name = "tossPayment")
+	public void cancel(String paymentKey, Long reservationId) {
+		try {
+			tossRestClient
+					.post()
+					.uri(properties.getPaymentBaseUrl() + "/" + paymentKey + "/cancel")
+					.header("Idempotency-Key", String.valueOf(reservationId))
+					.body(Map.of("cancelReason", "단순변심"))
+					.retrieve()
+					.toBodilessEntity();
+		} catch (HttpClientErrorException e) {
+			handleCancelError(paymentKey, e);
+		}
+	}
+
+	private void handleCancelError(String paymentKey, HttpClientErrorException e) {
+		TossErrorResponse error = parseError(e);
+		if (ALREADY_CANCELED.equals(error.getCode())) {
+			log.warn("[TOSS] 이미 취소된 결제 — 멱등 처리 paymentKey={}", paymentKey);
+			return;
+		}
+		log.warn("[TOSS] 결제 취소 거절 paymentKey={} code={} message={}", paymentKey, error.getCode(), error.getMessage());
+		throw new PaymentException(ErrorCode.REFUND_FAILED);
 	}
 
 	private PaymentResult handleClientError(PaymentRequest request, HttpClientErrorException e) {

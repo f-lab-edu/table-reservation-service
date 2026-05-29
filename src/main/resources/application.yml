@@ -31,6 +31,13 @@ rabbitmq:
     routing-key: payment.confirm
     dlx: payment-dlx
     dlq: payment-dlq
+  cancel:
+    exchange: cancel-exchange
+    queue: cancel-queue
+    routing-key: reservation.cancel
+    dlx: cancel-dlx
+    dlq: cancel-dlq
+    recovery-threshold-minutes: 3
 
 resilience4j:
   circuitbreaker:
