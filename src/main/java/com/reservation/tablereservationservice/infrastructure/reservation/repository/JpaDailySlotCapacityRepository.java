@@ -9,8 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
-import com.reservation.tablereservationservice.global.exception.ErrorCode;
-import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.infrastructure.reservation.entity.DailySlotCapacityEntity;
 import com.reservation.tablereservationservice.infrastructure.reservation.mapper.ReservationMapper;
 
@@ -25,15 +23,8 @@ public class JpaDailySlotCapacityRepository implements DailySlotCapacityReposito
 	@Override
 	public Optional<DailySlotCapacity> findBySlotIdAndDate(Long slotId, LocalDate date) {
 		return dailySlotCapacityEntityRepository
-			.findBySlotIdAndDate(slotId, date)
-			.map(ReservationMapper.INSTANCE::toDomain);
-	}
-
-	@Override
-	public Optional<DailySlotCapacity> findBySlotIdAndDateForUpdate(Long slotId, LocalDate date) {
-		return dailySlotCapacityEntityRepository
-			.findBySlotIdAndDateForUpdate(slotId, date)
-			.map(ReservationMapper.INSTANCE::toDomain);
+				.findBySlotIdAndDate(slotId, date)
+				.map(ReservationMapper.INSTANCE::toDomain);
 	}
 
 	@Override
@@ -46,21 +37,22 @@ public class JpaDailySlotCapacityRepository implements DailySlotCapacityReposito
 
 	@Override
 	@Transactional
-	public void updateRemainingCount(DailySlotCapacity capacity) {
-		DailySlotCapacityEntity entity = dailySlotCapacityEntityRepository.findById(capacity.getCapacityId())
-			.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "DailySlotCapacity"));
-
-		entity.updateRemainingCount(capacity.getRemainingCount());
-
-		// save() 호출 없음 -> 영속성 컨텍스트 변경 감지로 UPDATE
+	public int decreaseRemainingCount(Long slotId, LocalDate date, int partySize) {
+		return dailySlotCapacityEntityRepository.decreaseRemainingCount(slotId, date, partySize);
 	}
 
 	@Override
 	public List<DailySlotCapacity> findAllFromDate(LocalDate date) {
 		return dailySlotCapacityEntityRepository.findAllByDateGreaterThanEqual(date)
-			.stream()
-			.map(ReservationMapper.INSTANCE::toDomain)
-			.toList();
+				.stream()
+				.map(ReservationMapper.INSTANCE::toDomain)
+				.toList();
+	}
+
+	@Override
+	@Transactional
+	public void incrementRemainingCount(Long slotId, LocalDate date, int partySize) {
+		dailySlotCapacityEntityRepository.incrementRemainingCount(slotId, date, partySize);
 	}
 
 	@Override

@@ -17,6 +17,7 @@ public enum ErrorCode {
 	INVALID_RESERVATION_REQUEST("유효하지 않은 예약 요청입니다.", HttpStatus.BAD_REQUEST),
 	RESERVATION_ALREADY_CANCELED("이미 취소된 예약입니다.", HttpStatus.BAD_REQUEST),
 	RESERVATION_CANCEL_DEADLINE_PASSED("예약 취소는 방문 24시간 전까지 가능합니다.", HttpStatus.BAD_REQUEST),
+	RESERVATION_NOT_CANCELABLE("확정된 예약만 취소할 수 있습니다.", HttpStatus.BAD_REQUEST),
 
 	// 401 Unauthorized
 	UNAUTHORIZED("인증되지 않은 사용자입니다.", HttpStatus.UNAUTHORIZED),
@@ -44,6 +45,7 @@ public enum ErrorCode {
 	PAYMENT_AMOUNT_MISMATCH("결제 금액이 예약금과 일치하지 않습니다.", HttpStatus.BAD_REQUEST),
 	PAYMENT_RESERVATION_FAILED("이미 만료된 예약입니다.", HttpStatus.BAD_REQUEST),
 	PAYMENT_FAILED("결제에 실패했습니다.", HttpStatus.BAD_REQUEST),
+	REFUND_FAILED("결제 취소 처리에 실패했습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE),
 
 	// 503 Service Unavailable
 	TOSS_API_UNAVAILABLE("결제 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE),

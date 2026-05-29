@@ -54,7 +54,7 @@ class NotificationServiceIntegrationTest {
 					.findFirst().orElseThrow();
 			assertThat(customerNotification.getType()).isEqualTo(NotificationType.CONFIRMED);
 			assertThat(customerNotification.isRead()).isFalse();
-			assertThat(customerNotification.getContent()).contains("6월 1일").contains("2명");
+			assertThat(customerNotification.getContent()).contains("6월 1일").contains("테스트식당");
 
 			NotificationEntity ownerNotification = all.stream()
 					.filter(e -> e.getReceiverId().equals(ownerId))
@@ -90,7 +90,7 @@ class NotificationServiceIntegrationTest {
 					.findFirst().orElseThrow();
 			assertThat(customerNotification.getType()).isEqualTo(NotificationType.CANCELED);
 			assertThat(customerNotification.isRead()).isFalse();
-			assertThat(customerNotification.getContent()).contains("6월 1일").contains("3명");
+			assertThat(customerNotification.getContent()).contains("6월 1일").contains("테스트식당");
 
 			NotificationEntity ownerNotification = all.stream()
 					.filter(e -> e.getReceiverId().equals(ownerId))

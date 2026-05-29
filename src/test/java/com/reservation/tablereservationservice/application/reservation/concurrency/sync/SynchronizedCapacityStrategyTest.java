@@ -43,6 +43,9 @@ class SynchronizedCapacityStrategyTest {
 
 	@BeforeEach
 	void setUp() {
+		dailySlotCapacityRepository.deleteAll();
+		restaurantSlotRepository.deleteAll();
+
 		// 테스트 날짜
 		date = LocalDate.now();
 

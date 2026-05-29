@@ -71,6 +71,7 @@ class PaymentConfirmationServiceTest {
 	private PaymentConfirmationService paymentConfirmationService;
 
 	private Reservation pendingReservation;
+	private Reservation confirmedReservation;
 	private RestaurantSlot slot;
 	private Restaurant restaurant;
 	private PaymentQueueMessage queueMessage;
@@ -78,6 +79,14 @@ class PaymentConfirmationServiceTest {
 	@BeforeEach
 	void setUp() {
 		pendingReservation = ReservationFixture.pending()
+				.reservationId(RESERVATION_ID)
+				.userId(1L)
+				.slotId(SLOT_ID)
+				.partySize(2)
+				.idempotencyKey(IDEMPOTENCY_KEY)
+				.build();
+
+		confirmedReservation = ReservationFixture.confirmed()
 				.reservationId(RESERVATION_ID)
 				.userId(1L)
 				.slotId(SLOT_ID)
@@ -101,10 +110,15 @@ class PaymentConfirmationServiceTest {
 	}
 
 	@Test
-	@DisplayName("결제 확정 성공 - 예약 상태가 CONFIRMED로 변경되고 Payment가 저장된다")
+	@DisplayName("결제 확정 성공 - PENDING → CONFIRMED atomic UPDATE, Payment 저장, 알림 콜백 등록")
 	void confirm_success() {
 		// given
-		given(reservationRepository.fetchById(RESERVATION_ID)).willReturn(pendingReservation);
+		given(reservationRepository.updateStatusConditional(
+				RESERVATION_ID,
+				ReservationStatus.PENDING,
+				ReservationStatus.CONFIRMED
+		)).willReturn(1);
+		given(reservationRepository.fetchById(RESERVATION_ID)).willReturn(confirmedReservation);
 		given(restaurantSlotRepository.fetchById(SLOT_ID)).willReturn(slot);
 		given(restaurantRepository.findById(RESTAURANT_ID)).willReturn(Optional.of(restaurant));
 		given(paymentRepository.save(any(Payment.class))).willAnswer(inv -> inv.getArgument(0));
@@ -112,9 +126,8 @@ class PaymentConfirmationServiceTest {
 		// when
 		paymentConfirmationService.confirm(queueMessage);
 
-		// then - 예약 상태
-		assertThat(pendingReservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
-		verify(reservationRepository).updateStatus(pendingReservation);
+		// then - atomic UPDATE 호출
+		verify(reservationRepository).updateStatusConditional(RESERVATION_ID, ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
 
 		// then - 결제 레코드
 		ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
@@ -127,57 +140,63 @@ class PaymentConfirmationServiceTest {
 		assertThat(saved.getStatus()).isEqualTo(PaymentStatus.DONE);
 		assertThat(saved.getApprovedAt()).isEqualTo(queueMessage.getApprovedAt());
 
-		// then - 알림 예약
+		// then - 알림 콜백
 		verify(transactionHandler).runAfterCommit(any());
 	}
 
 	@Test
-	@DisplayName("결제 확정 실패 - 예약을 찾을 수 없으면 예외가 발생한다")
+	@DisplayName("결제 확정 실패 - fetchById 실패 시 예외 전파 (UPDATE 성공 후 SELECT 실패)")
 	void confirm_fail_reservationNotFound() {
-		// given
+		// given — UPDATE는 성공했지만 이후 fetchById가 실패하는 방어적 시나리오
+		given(reservationRepository.updateStatusConditional(
+				RESERVATION_ID,
+				ReservationStatus.PENDING,
+				ReservationStatus.CONFIRMED
+		)).willReturn(1);
 		given(reservationRepository.fetchById(RESERVATION_ID))
 				.willThrow(new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "예약"));
 
 		// when & then
 		assertThatThrownBy(() -> paymentConfirmationService.confirm(queueMessage))
 				.isInstanceOf(ReservationException.class)
-				.satisfies(ex -> assertThat(((ReservationException) ex).getErrorCode())
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 						.isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
 
-		verifyNoInteractions(paymentRepository, notificationService);
+		verifyNoInteractions(paymentRepository, notificationService, transactionHandler);
 	}
 
 	@Test
-	@DisplayName("레이스 컨디션 - PAYMENT_FAILED 예약은 조용히 종료한다 (ack)")
-	void confirm_raceCondition_paymentFailed_silentlyReturns() {
-		// given — 스케줄러가 먼저 PAYMENT_FAILED로 바꾼 상황
-		Reservation failedReservation = ReservationFixture.paymentFailed()
-				.reservationId(RESERVATION_ID)
-				.slotId(SLOT_ID)
-				.idempotencyKey(IDEMPOTENCY_KEY)
-				.build();
-
-		given(reservationRepository.fetchById(RESERVATION_ID)).willReturn(failedReservation);
-
-		// when & then
-		assertThatCode(() -> paymentConfirmationService.confirm(queueMessage)).doesNotThrowAnyException();
-		verifyNoInteractions(paymentRepository, notificationService);
-	}
-
-	@Test
-	@DisplayName("레이스 컨디션 - CONFIRMED 예약은 조용히 종료한다 (ack)")
-	void confirm_raceCondition_alreadyConfirmed_silentlyReturns() {
-		// given — 이미 다른 컨슈머가 처리 완료한 상황
-		Reservation confirmedReservation = ReservationFixture.confirmed()
-				.reservationId(RESERVATION_ID)
-				.slotId(SLOT_ID)
-				.idempotencyKey(IDEMPOTENCY_KEY)
-				.build();
-
+	@DisplayName("결제 확정 실패 - 레스토랑 없음 시 예외 전파 (Payment 저장 불가)")
+	void confirm_fail_restaurantNotFound() {
+		given(reservationRepository.updateStatusConditional(
+				RESERVATION_ID,
+				ReservationStatus.PENDING,
+				ReservationStatus.CONFIRMED
+		)).willReturn(1);
 		given(reservationRepository.fetchById(RESERVATION_ID)).willReturn(confirmedReservation);
+		given(restaurantSlotRepository.fetchById(SLOT_ID)).willReturn(slot);
+		given(restaurantRepository.findById(RESTAURANT_ID)).willReturn(Optional.empty());
+		given(paymentRepository.save(any(Payment.class))).willAnswer(inv -> inv.getArgument(0));
 
-		// when & then
+		assertThatThrownBy(() -> paymentConfirmationService.confirm(queueMessage))
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+
+		verifyNoInteractions(transactionHandler);
+	}
+
+	@Test
+	@DisplayName("레이스 컨디션 - 0 rows (PAYMENT_FAILED 선점 또는 중복 메시지) → 조용히 종료 (ack)")
+	void confirm_raceCondition_silentlyReturns() {
+		given(reservationRepository.updateStatusConditional(
+				RESERVATION_ID,
+				ReservationStatus.PENDING,
+				ReservationStatus.CONFIRMED
+		)).willReturn(0);
+
 		assertThatCode(() -> paymentConfirmationService.confirm(queueMessage)).doesNotThrowAnyException();
-		verifyNoInteractions(paymentRepository, notificationService);
+		verify(reservationRepository, never()).fetchById(any());
+		verifyNoInteractions(paymentRepository, notificationService, transactionHandler);
 	}
 }

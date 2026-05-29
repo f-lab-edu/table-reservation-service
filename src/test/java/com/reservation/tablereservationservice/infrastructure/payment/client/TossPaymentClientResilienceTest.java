@@ -44,7 +44,7 @@ class TossPaymentClientResilienceTest {
 
 	@DynamicPropertySource
 	static void setProperties(DynamicPropertyRegistry registry) {
-		registry.add("toss.payments.approve-url", () -> mockServer.url("/v1/payments/approve").toString());
+		registry.add("toss.payments.confirm-url", () -> mockServer.url("/v1/payments/confirm").toString());
 		registry.add("toss.payments.payment-base-url", () -> mockServer.url("/v1/payments").toString());
 	}
 

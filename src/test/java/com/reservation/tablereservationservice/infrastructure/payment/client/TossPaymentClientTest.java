@@ -14,6 +14,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.reservation.tablereservationservice.application.payment.PaymentRequest;
 import com.reservation.tablereservationservice.application.payment.PaymentResult;
 import com.reservation.tablereservationservice.global.config.TossPaymentProperties;
+import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.PaymentException;
 
 import okhttp3.mockwebserver.MockResponse;
@@ -122,5 +123,37 @@ class TossPaymentClientTest {
 		assertThatThrownBy(() -> client.confirm(
 				PaymentRequest.of("key", "order-1", 10000)))
 				.isInstanceOf(HttpServerErrorException.class);
+	}
+
+	@Test
+	@DisplayName("cancel - 200 응답 → 예외 없이 종료")
+	void cancel_success() {
+		mockServer.enqueue(new MockResponse().setResponseCode(200));
+		assertThatCode(() -> client.cancel("toss-key", 1L)).doesNotThrowAnyException();
+	}
+
+	@Test
+	@DisplayName("cancel - ALREADY_CANCELED_PAYMENT → 조용히 반환 (멱등)")
+	void cancel_alreadyCanceled_silentReturn() {
+		mockServer.enqueue(new MockResponse()
+				.setResponseCode(400)
+				.addHeader("Content-Type", "application/json")
+				.setBody("{\"code\":\"ALREADY_CANCELED_PAYMENT\",\"message\":\"이미 취소된 결제입니다.\"}"));
+
+		assertThatCode(() -> client.cancel("toss-key", 1L)).doesNotThrowAnyException();
+	}
+
+	@Test
+	@DisplayName("cancel - 그 외 4xx → REFUND_FAILED 예외")
+	void cancel_otherClientError_throwsRefundFailed() {
+		mockServer.enqueue(new MockResponse()
+				.setResponseCode(400)
+				.addHeader("Content-Type", "application/json")
+				.setBody("{\"code\":\"PAYMENT_NOT_FOUND\",\"message\":\"결제 건을 찾을 수 없습니다.\"}"));
+
+		assertThatThrownBy(() -> client.cancel("toss-key", 1L))
+				.isInstanceOf(PaymentException.class)
+				.satisfies(ex -> assertThat(((PaymentException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.REFUND_FAILED));
 	}
 }

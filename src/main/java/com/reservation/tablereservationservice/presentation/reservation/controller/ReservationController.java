@@ -13,10 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.reservation.tablereservationservice.application.reservation.facade.ReservationFacade;
-import com.reservation.tablereservationservice.application.reservation.facade.ReservationOptimisticFacade;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationCreateResult;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
-import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.global.annotation.CustomerOnly;
 import com.reservation.tablereservationservice.global.annotation.LoginUser;
 import com.reservation.tablereservationservice.global.annotation.OwnerOnly;
@@ -40,7 +38,6 @@ public class ReservationController {
 
 	private final ReservationService reservationService;
 	private final ReservationFacade reservationFacade;
-	private final ReservationOptimisticFacade reservationOptimisticFacade;
 
 	@CustomerOnly
 	@PostMapping
@@ -83,8 +80,8 @@ public class ReservationController {
 
 	@CustomerOnly
 	@PostMapping("/{reservationId}/cancel")
-	public ApiResponse<ReservationResponseDto> cancel(@PathVariable Long reservationId, @LoginUser CurrentUser user) {
-		Reservation reservation = reservationOptimisticFacade.cancelWithRetry(user.email(), reservationId);
-		return ApiResponse.success("예약 취소 성공", ReservationResponseDto.from(reservation));
+	public ApiResponse<Void> cancel(@PathVariable Long reservationId, @LoginUser CurrentUser user) {
+		reservationFacade.cancel(user.email(), reservationId);
+		return ApiResponse.success("예약 취소 성공");
 	}
 }

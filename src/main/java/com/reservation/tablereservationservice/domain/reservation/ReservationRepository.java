@@ -18,30 +18,32 @@ public interface ReservationRepository {
 	boolean existsByUserIdAndVisitAtAndStatusIn(Long userId, LocalDateTime visitAt, List<ReservationStatus> statuses);
 
 	Page<Reservation> findMyReservations(
-		Long userId,
-		ReservationStatus status,
-		LocalDateTime from,
-		LocalDateTime to,
-		Pageable pageable
+			Long userId,
+			ReservationStatus status,
+			LocalDateTime from,
+			LocalDateTime to,
+			Pageable pageable
 	);
 
 	Page<Reservation> findOwnerReservations(
-		List<Long> restaurantIds,
-		ReservationStatus status,
-		LocalDateTime from,
-		LocalDateTime to,
-		Pageable pageable
+			List<Long> restaurantIds,
+			ReservationStatus status,
+			LocalDateTime from,
+			LocalDateTime to,
+			Pageable pageable
 	);
 
 	Optional<Reservation> findById(Long reservationId);
 
 	Reservation fetchById(Long reservationId);
 
-	void updateStatus(Reservation reservation);
+	int updateStatusConditional(Long id, ReservationStatus from, ReservationStatus to);
 
 	void updatePaymentKey(Reservation reservation);
 
 	List<Reservation> findPendingBefore(LocalDateTime createdBefore);
+
+	List<Reservation> findCancelPendingBefore(LocalDateTime createdBefore);
 
 	void deleteAll();
 }

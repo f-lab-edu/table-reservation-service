@@ -13,7 +13,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -53,9 +52,6 @@ public class ReservationEntity extends BaseTimeEntity {
 	@Column(length = 200)
 	private String paymentKey;
 
-	@Version
-	private Long version;
-
 	@Builder
 	public ReservationEntity(
 			Long userId, Long slotId, LocalDateTime visitAt, Integer partySize,
@@ -69,10 +65,6 @@ public class ReservationEntity extends BaseTimeEntity {
 		this.status = status;
 		this.idempotencyKey = idempotencyKey;
 		this.paymentKey = paymentKey;
-	}
-
-	public void updateStatus(ReservationStatus status) {
-		this.status = status;
 	}
 
 	public void updatePaymentKey(String paymentKey) {

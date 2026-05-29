@@ -17,6 +17,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
+
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 
 import com.reservation.tablereservationservice.application.payment.PaymentClient;
 import com.reservation.tablereservationservice.application.payment.PaymentRequest;
@@ -217,6 +221,41 @@ class PaymentServiceTest {
 				.willThrow(HttpServerErrorException.class);
 
 		// when & then
+		assertThatThrownBy(() -> paymentService.approve(USER_ID, requestDto))
+				.isInstanceOf(PaymentException.class)
+				.satisfies(ex -> assertThat(((PaymentException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.TOSS_API_UNAVAILABLE));
+
+		verify(reservationRepository).updatePaymentKey(pendingReservation);
+		verify(paymentQueuePublisher, never()).publish(any());
+	}
+
+	@Test
+	@DisplayName("결제 확정 실패 - 네트워크 타임아웃 시 TOSS_API_UNAVAILABLE 예외가 발생한다")
+	void approve_fail_networkTimeout() {
+		given(reservationRepository.fetchByIdempotencyKey(IDEMPOTENCY_KEY)).willReturn(pendingReservation);
+		given(restaurantSlotRepository.fetchById(SLOT_ID)).willReturn(slot);
+		given(paymentClient.confirm(any(PaymentRequest.class)))
+				.willThrow(new ResourceAccessException("Connection timed out"));
+
+		assertThatThrownBy(() -> paymentService.approve(USER_ID, requestDto))
+				.isInstanceOf(PaymentException.class)
+				.satisfies(ex -> assertThat(((PaymentException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.TOSS_API_UNAVAILABLE));
+
+		verify(reservationRepository).updatePaymentKey(pendingReservation);
+		verify(paymentQueuePublisher, never()).publish(any());
+	}
+
+	@Test
+	@DisplayName("결제 확정 실패 - 서킷 브레이커 OPEN 시 TOSS_API_UNAVAILABLE 예외가 발생한다")
+	void approve_fail_circuitBreakerOpen() {
+		given(reservationRepository.fetchByIdempotencyKey(IDEMPOTENCY_KEY)).willReturn(pendingReservation);
+		given(restaurantSlotRepository.fetchById(SLOT_ID)).willReturn(slot);
+		given(paymentClient.confirm(any(PaymentRequest.class)))
+				.willThrow(CallNotPermittedException.createCallNotPermittedException(
+						CircuitBreaker.ofDefaults("test")));
+
 		assertThatThrownBy(() -> paymentService.approve(USER_ID, requestDto))
 				.isInstanceOf(PaymentException.class)
 				.satisfies(ex -> assertThat(((PaymentException)ex).getErrorCode())

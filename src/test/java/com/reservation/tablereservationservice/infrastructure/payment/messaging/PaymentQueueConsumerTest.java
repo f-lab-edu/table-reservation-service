@@ -20,13 +20,13 @@ import com.reservation.tablereservationservice.application.payment.service.Payme
 import com.reservation.tablereservationservice.fixture.ReservationFixture;
 
 @ExtendWith(MockitoExtension.class)
-class PaymentQueueListenerTest {
+class PaymentQueueConsumerTest {
 
 	@Mock
 	private PaymentConfirmationService paymentConfirmationService;
 
 	@InjectMocks
-	private PaymentQueueListener listener;
+	private PaymentQueueConsumer listener;
 
 	private PaymentQueueMessage message;
 

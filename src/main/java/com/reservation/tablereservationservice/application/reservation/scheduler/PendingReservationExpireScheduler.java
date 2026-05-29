@@ -12,6 +12,7 @@ import com.reservation.tablereservationservice.application.payment.PaymentResult
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
+import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
 import com.reservation.tablereservationservice.global.config.ReservationStreamProperties;
 import com.reservation.tablereservationservice.global.exception.PaymentException;
 import com.reservation.tablereservationservice.infrastructure.payment.messaging.PaymentQueueMessage;
@@ -75,15 +76,20 @@ public class PendingReservationExpireScheduler {
 	}
 
 	private void failReservation(Reservation reservation) {
-		reservation.fail();
-		reservationRepository.updateStatus(reservation);
+		int affected = reservationRepository.updateStatusConditional(
+				reservation.getReservationId(),
+				ReservationStatus.PENDING,
+				ReservationStatus.PAYMENT_FAILED);
+		if (affected == 0) {
+			log.info("[EXPIRE_SCHEDULER] 이미 처리된 예약 — 건너뜀 reservationId={}", reservation.getReservationId());
+			return;
+		}
 
-		dailySlotCapacityRepository
-				.findBySlotIdAndDate(reservation.getSlotId(), reservation.getVisitAt().toLocalDate())
-				.ifPresent(capacity -> {
-					capacity.increase(reservation.getPartySize());
-					dailySlotCapacityRepository.updateRemainingCount(capacity);
-				});
+		dailySlotCapacityRepository.incrementRemainingCount(
+				reservation.getSlotId(),
+				reservation.getVisitAt().toLocalDate(),
+				reservation.getPartySize()
+		);
 
 		reservationPublisher.releaseSeat(
 				reservation.getSlotId(),
