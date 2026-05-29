@@ -50,6 +50,14 @@ public class JpaRestaurantSlotRepository implements RestaurantSlotRepository {
 	}
 
 	@Override
+	public List<RestaurantSlot> findAllByRestaurantId(Long restaurantId) {
+		return restaurantSlotEntityRepository.findAllByRestaurantId(restaurantId)
+			.stream()
+			.map(RestaurantMapper.INSTANCE::toDomain)
+			.toList();
+	}
+
+	@Override
 	public void deleteAll() {
 		restaurantSlotEntityRepository.deleteAll();
 	}
