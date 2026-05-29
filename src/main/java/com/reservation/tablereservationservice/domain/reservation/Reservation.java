@@ -45,14 +45,6 @@ public class Reservation {
 		this.paymentKey = paymentKey;
 	}
 
-	public void confirm() {
-		this.status = ReservationStatus.CONFIRMED;
-	}
-
-	public void fail() {
-		this.status = ReservationStatus.PAYMENT_FAILED;
-	}
-
 	public boolean isOwner(Long userId) {
 		return this.userId != null && this.userId.equals(userId);
 	}
@@ -70,7 +62,7 @@ public class Reservation {
 		return now.isBefore(cancelDeadline);
 	}
 
-	public void cancel() {
-		this.status = ReservationStatus.CANCELED;
+	public void markCancelPending() {
+		this.status = ReservationStatus.CANCEL_PENDING;
 	}
 }

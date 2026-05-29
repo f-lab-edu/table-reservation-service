@@ -6,15 +6,15 @@ import java.util.Optional;
 
 public interface DailySlotCapacityRepository {
 
+	void incrementRemainingCount(Long slotId, LocalDate date, int partySize);
+
+	int decreaseRemainingCount(Long slotId, LocalDate date, int partySize);
+
 	Optional<DailySlotCapacity> findBySlotIdAndDate(Long restaurantSlotId, LocalDate date);
 
 	List<DailySlotCapacity> findAllFromDate(LocalDate date);
 
-	Optional<DailySlotCapacity> findBySlotIdAndDateForUpdate(Long restaurantSlotId, LocalDate date);
-
 	DailySlotCapacity save(DailySlotCapacity dailySlotCapacity);
-
-	void updateRemainingCount(DailySlotCapacity capacity);
 
 	void deleteAll();
 }
