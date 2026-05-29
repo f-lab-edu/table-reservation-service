@@ -46,7 +46,6 @@ CREATE TABLE daily_slot_capacity (
     slot_id         BIGINT NOT NULL                   COMMENT '슬롯 FK',
     date            DATE   NOT NULL                   COMMENT '날짜',
     remaining_count INT    NOT NULL                   COMMENT '잔여 수량',
-    version         BIGINT NOT NULL DEFAULT 0          COMMENT '낙관적 락 버전',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
     modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_capacity_slot
@@ -65,7 +64,6 @@ CREATE TABLE reservation (
     status          VARCHAR(20)  NOT NULL              COMMENT '예약 상태',
     idempotency_key VARCHAR(36)  UNIQUE                COMMENT '멱등성 키',
     payment_key     VARCHAR(200)                       COMMENT 'Toss 결제 키 (approve 요청 시 저장)',
-    version         BIGINT       NOT NULL DEFAULT 0    COMMENT '낙관적 락 버전',
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
     modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_reservation_user
