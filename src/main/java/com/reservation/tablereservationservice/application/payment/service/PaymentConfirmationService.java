@@ -36,16 +36,14 @@ public class PaymentConfirmationService {
 
 	@Transactional
 	public void confirm(PaymentQueueMessage message) {
-		Reservation reservation = reservationRepository.fetchById(message.getReservationId());
-
-		if (reservation.getStatus() != ReservationStatus.PENDING) {
-			log.warn("[PAYMENT] PENDING이 아닌 예약 확정 시도 — 스케줄러 레이스 컨디션 또는 중복 메시지. status={}, reservationId={}",
-					reservation.getStatus(), reservation.getReservationId());
+		int affected = reservationRepository.updateStatusConditional(
+				message.getReservationId(), ReservationStatus.PENDING, ReservationStatus.CONFIRMED);
+		if (affected == 0) {
+			log.warn("[PAYMENT] 이미 처리된 예약 — 중복 메시지 reservationId={}", message.getReservationId());
 			return;
 		}
 
-		reservation.confirm();
-		reservationRepository.updateStatus(reservation);
+		Reservation reservation = reservationRepository.fetchById(message.getReservationId());
 
 		paymentRepository.save(Payment.builder()
 				.reservationId(message.getReservationId())
