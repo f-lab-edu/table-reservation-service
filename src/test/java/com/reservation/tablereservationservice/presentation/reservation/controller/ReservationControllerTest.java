@@ -36,7 +36,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reservation.tablereservationservice.application.reservation.facade.ReservationFacade;
-import com.reservation.tablereservationservice.application.reservation.facade.ReservationOptimisticFacade;
 import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationCreateResult;
 import com.reservation.tablereservationservice.application.reservation.service.ReservationService;
@@ -67,9 +66,6 @@ class ReservationControllerTest {
 
 	@MockitoBean
 	private ReservationFacade reservationFacade;
-
-	@MockitoBean
-	private ReservationOptimisticFacade reservationOptimisticFacade;
 
 	@MockitoBean
 	private com.reservation.tablereservationservice.domain.user.UserRepository userRepository;
@@ -222,24 +218,62 @@ class ReservationControllerTest {
 	}
 
 	@Test
-	@DisplayName("예약 취소 성공 - CUSTOMER 권한이면 200 및 응답 바디 반환")
+	@DisplayName("예약 요청 실패 - Idempotency-Key 헤더 없으면 400")
+	void create_fail_missingIdempotencyKey_returnsBadRequest() throws Exception {
+		ReservationRequestDto requestDto = new ReservationRequestDto(10L, BASE_DATE, 2, "note");
+
+		Authentication auth = new UsernamePasswordAuthenticationToken(
+			"customer01@test.com", null,
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+		);
+
+		mockMvc.perform(post("/api/reservations")
+				.with(authentication(auth))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(requestDto)))
+			.andExpect(status().isBadRequest());
+
+		verify(reservationFacade, never()).reserve(anyString(), any(), anyString());
+	}
+
+	@Test
+	@DisplayName("내 예약 목록 조회 실패 - OWNER 권한이면 403")
+	void getMyReservations_fail_notCustomerRole_returnsForbidden() throws Exception {
+		Authentication auth = new UsernamePasswordAuthenticationToken(
+			"owner@test.com", null,
+			List.of(new SimpleGrantedAuthority("ROLE_OWNER"))
+		);
+
+		mockMvc.perform(get("/api/reservations/me")
+				.with(authentication(auth)))
+			.andExpect(status().isForbidden());
+
+		verify(reservationService, never()).findMyReservations(anyString(), any());
+	}
+
+	@Test
+	@DisplayName("점주 예약 목록 조회 실패 - CUSTOMER 권한이면 403")
+	void getOwnerReservations_fail_notOwnerRole_returnsForbidden() throws Exception {
+		Authentication auth = new UsernamePasswordAuthenticationToken(
+			"customer01@test.com", null,
+			List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"))
+		);
+
+		mockMvc.perform(get("/api/reservations/owner")
+				.with(authentication(auth)))
+			.andExpect(status().isForbidden());
+
+		verify(reservationService, never()).findOwnerReservations(anyString(), any());
+	}
+
+	@Test
+	@DisplayName("예약 취소 성공 - CUSTOMER 권한이면 200, data 없음 (비동기 취소)")
 	void cancel_success_whenCustomerRole() throws Exception {
 		// given
 		String email = "customer01@test.com";
 		Long reservationId = 999L;
 
-		Reservation canceledReservation = Reservation.builder()
-			.reservationId(reservationId)
-			.userId(1L)
-			.slotId(10L)
-			.visitAt(BASE_VISIT_AT)
-			.partySize(2)
-			.note("note")
-			.status(ReservationStatus.CANCELED)
-			.build();
-
-		given(reservationOptimisticFacade.cancelWithRetry(eq(email), eq(reservationId)))
-			.willReturn(canceledReservation);
+		willDoNothing().given(reservationFacade).cancel(eq(email), eq(reservationId));
 
 		Authentication auth = new UsernamePasswordAuthenticationToken(
 			email,
@@ -255,21 +289,17 @@ class ReservationControllerTest {
 			.andReturn();
 
 		// then
-		ApiResponse<ReservationResponseDto> response = readResponse(
+		ApiResponse<Void> response = readResponse(
 			mvcResult,
-			new TypeReference<ApiResponse<ReservationResponseDto>>() {
+			new TypeReference<ApiResponse<Void>>() {
 			}
 		);
 
 		assertThat(response.getCode()).isEqualTo(200);
 		assertThat(response.getMessage()).isEqualTo("예약 취소 성공");
+		assertThat(response.getData()).isNull();
 
-		ReservationResponseDto data = response.getData();
-		assertThat(data).isNotNull();
-		assertThat(data.getReservationId()).isEqualTo(reservationId);
-		assertThat(data.getStatus()).isEqualTo(ReservationStatus.CANCELED);
-
-		verify(reservationOptimisticFacade).cancelWithRetry(eq(email), eq(reservationId));
+		verify(reservationFacade).cancel(eq(email), eq(reservationId));
 	}
 
 	@Test
@@ -292,7 +322,7 @@ class ReservationControllerTest {
 			.andExpect(status().isForbidden());
 
 		// then
-		verify(reservationOptimisticFacade, never()).cancelWithRetry(anyString(), anyLong());
+		verify(reservationFacade, never()).cancel(anyString(), anyLong());
 	}
 
 	private <T> ApiResponse<T> readResponse(

@@ -13,7 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,6 +23,7 @@ import com.reservation.tablereservationservice.domain.reservation.DailySlotCapac
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
 import com.reservation.tablereservationservice.domain.reservation.ReservationStatus;
+import com.reservation.tablereservationservice.domain.restaurant.Restaurant;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
@@ -31,11 +31,13 @@ import com.reservation.tablereservationservice.domain.user.User;
 import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.fixture.DailySlotCapacityFixture;
 import com.reservation.tablereservationservice.fixture.ReservationFixture;
+import com.reservation.tablereservationservice.fixture.RestaurantFixture;
 import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
 import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
+import com.reservation.tablereservationservice.infrastructure.redis.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,6 +60,9 @@ class ReservationServiceTest {
 
 	@Mock
 	private RestaurantRepository restaurantRepository;
+
+	@Mock
+	private ReservationPublisher reservationPublisher;
 
 	@Mock
 	private NotificationService notificationService;
@@ -87,7 +92,6 @@ class ReservationServiceTest {
 	@Test
 	@DisplayName("예약 요청 성공 - PENDING 저장 + capacity 차감")
 	void create_success() {
-		// given
 		LocalDate date = BASE_DATE;
 		LocalDateTime visitAt = LocalDateTime.of(date, restaurantSlot.getTime());
 		int partySize = 2;
@@ -108,28 +112,70 @@ class ReservationServiceTest {
 		)).willReturn(false);
 		given(dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), date))
 				.willReturn(Optional.of(capacity));
+		given(dailySlotCapacityRepository.decreaseRemainingCount(restaurantSlot.getSlotId(), date, partySize))
+				.willReturn(1);
 		given(reservationRepository.save(any(Reservation.class))).willAnswer(inv -> inv.getArgument(0));
 
-		// when
 		ReservationCreateResult result = reservationService.reserve(customer.getEmail(), req, idempotencyKey);
 
-		// then
 		assertThat(result.reservation().getUserId()).isEqualTo(customer.getUserId());
 		assertThat(result.reservation().getStatus()).isEqualTo(ReservationStatus.PENDING);
 		assertThat(result.depositAmount()).isEqualTo(restaurantSlot.depositAmount(partySize));
 
 		verify(reservationRepository).save(any(Reservation.class));
+		verify(dailySlotCapacityRepository).decreaseRemainingCount(restaurantSlot.getSlotId(), date, partySize);
+	}
 
-		// capacity 차감 확인
-		ArgumentCaptor<DailySlotCapacity> capacityCaptor = ArgumentCaptor.forClass(DailySlotCapacity.class);
-		verify(dailySlotCapacityRepository).updateRemainingCount(capacityCaptor.capture());
-		assertThat(capacityCaptor.getValue().getRemainingCount()).isEqualTo(8);
+	@Test
+	@DisplayName("예약 요청 실패 - 동일 시간대에 이미 예약이 있으면 409 예외가 발생한다.")
+	void create_fail_duplicatedTime() {
+		LocalDate date = BASE_DATE;
+		LocalDateTime visitAt = LocalDateTime.of(date, restaurantSlot.getTime());
+		String idempotencyKey = "test-idempotency-key";
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), date, 2, "note");
+
+		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
+		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
+		given(reservationRepository.existsByUserIdAndVisitAtAndStatusIn(
+				eq(customer.getUserId()), eq(visitAt), anyList()
+		)).willReturn(true);
+
+		assertThatThrownBy(() -> reservationService.reserve(customer.getEmail(), req, idempotencyKey))
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESERVATION_DUPLICATED_TIME));
+
+		verifyNoInteractions(dailySlotCapacityRepository);
+		verify(reservationRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("예약 요청 실패 - 슬롯이 오픈되지 않았으면 409 예외가 발생한다.")
+	void create_fail_slotNotOpened() {
+		LocalDate date = BASE_DATE;
+		LocalDateTime visitAt = LocalDateTime.of(date, restaurantSlot.getTime());
+		String idempotencyKey = "test-idempotency-key";
+		ReservationRequestDto req = new ReservationRequestDto(restaurantSlot.getSlotId(), date, 2, "note");
+
+		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
+		given(restaurantSlotRepository.fetchById(restaurantSlot.getSlotId())).willReturn(restaurantSlot);
+		given(reservationRepository.existsByUserIdAndVisitAtAndStatusIn(
+				eq(customer.getUserId()), eq(visitAt), anyList()
+		)).willReturn(false);
+		given(dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), date))
+				.willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> reservationService.reserve(customer.getEmail(), req, idempotencyKey))
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
+
+		verify(reservationRepository, never()).save(any());
 	}
 
 	@Test
 	@DisplayName("예약 요청 실패 - 좌석이 부족하면 409 예외가 발생한다.")
 	void create_fail_capacityNotEnough() {
-		// given
 		LocalDate date = BASE_DATE;
 		LocalDateTime visitAt = LocalDateTime.of(date, restaurantSlot.getTime());
 		String idempotencyKey = "test-idempotency-key";
@@ -150,100 +196,105 @@ class ReservationServiceTest {
 		given(dailySlotCapacityRepository.findBySlotIdAndDate(restaurantSlot.getSlotId(), date))
 				.willReturn(Optional.of(capacity));
 
-		// when & then
 		assertThatThrownBy(() -> reservationService.reserve(customer.getEmail(), req, idempotencyKey))
 				.isInstanceOf(ReservationException.class)
 				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 						.isEqualTo(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH));
 
+		verify(dailySlotCapacityRepository).decreaseRemainingCount(restaurantSlot.getSlotId(), date, 2);
 		verify(reservationRepository, never()).save(any());
-		verify(dailySlotCapacityRepository, never()).updateRemainingCount(any(DailySlotCapacity.class));
 	}
 
 	@Test
-	@DisplayName("예약 취소 실패 - 본인 예약이 아니면 403 예외가 발생한다.")
-	void cancel_fail_forbidden() {
-		// given
+	@DisplayName("예약 취소 대기 설정 성공 - CONFIRMED → CANCEL_PENDING atomic UPDATE 호출")
+	void markCancelPending_success() {
 		Long reservationId = 999L;
-		LocalDateTime now = LocalDateTime.now(); // now는 테스트에서 한 번만
-		LocalDateTime visitAt = now.plusDays(2);
+		given(reservationRepository.updateStatusConditional(
+				reservationId, ReservationStatus.CONFIRMED, ReservationStatus.CANCEL_PENDING)).willReturn(1);
 
-		Reservation reservation = ReservationFixture.confirmed()
-				.reservationId(reservationId)
-				.userId(2L) // 다른 유저 예약
-				.slotId(restaurantSlot.getSlotId())
+		reservationService.markCancelPending(reservationId);
+
+		verify(reservationRepository).updateStatusConditional(
+				reservationId, ReservationStatus.CONFIRMED, ReservationStatus.CANCEL_PENDING);
+	}
+
+	@Test
+	@DisplayName("예약 취소 대기 설정 실패 - 다른 요청이 선점 시 409")
+	void markCancelPending_fail_concurrencyError() {
+		Long reservationId = 999L;
+		given(reservationRepository.updateStatusConditional(
+				reservationId, ReservationStatus.CONFIRMED, ReservationStatus.CANCEL_PENDING)).willReturn(0);
+
+		assertThatThrownBy(() -> reservationService.markCancelPending(reservationId))
+				.isInstanceOf(ReservationException.class)
+				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
+						.isEqualTo(ErrorCode.RESERVATION_CONCURRENCY_ERROR));
+	}
+
+	@Test
+	@DisplayName("예약 취소 확정 성공 - CANCELED 전이 + 좌석 복원 + post-commit 콜백 2회 등록")
+	void confirmCancel_success() {
+		LocalDateTime visitAt = LocalDateTime.of(2030, 6, 1, 19, 0);
+		int partySize = 2;
+		Long slotId = restaurantSlot.getSlotId();
+
+		Reservation reservation = ReservationFixture.cancelPending()
+				.reservationId(1L)
+				.slotId(slotId)
+				.visitAt(visitAt)
+				.partySize(partySize)
+				.build();
+
+		Restaurant restaurant = RestaurantFixture.restaurant().build();
+
+		given(reservationRepository.updateStatusConditional(
+				1L, ReservationStatus.CANCEL_PENDING, ReservationStatus.CANCELED)).willReturn(1);
+		given(restaurantSlotRepository.fetchById(slotId)).willReturn(restaurantSlot);
+		given(restaurantRepository.findById(restaurantSlot.getRestaurantId())).willReturn(Optional.of(restaurant));
+
+		reservationService.confirmCancel(reservation);
+
+		verify(dailySlotCapacityRepository).incrementRemainingCount(slotId, visitAt.toLocalDate(), partySize);
+		verify(transactionHandler, times(2)).runAfterCommit(any());
+	}
+
+	@Test
+	@DisplayName("취소 확정 - 레스토랑 조회 실패 시 좌석 복원 콜백 1회만, 알림 생략")
+	void confirmCancel_restaurantNotFound_onlySeatReleaseCallback() {
+		LocalDateTime visitAt = LocalDateTime.of(2030, 6, 1, 19, 0);
+		Long slotId = restaurantSlot.getSlotId();
+
+		Reservation reservation = ReservationFixture.cancelPending()
+				.reservationId(1L)
+				.slotId(slotId)
 				.visitAt(visitAt)
 				.partySize(2)
 				.build();
 
-		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
-		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
+		given(reservationRepository.updateStatusConditional(
+				1L, ReservationStatus.CANCEL_PENDING, ReservationStatus.CANCELED)).willReturn(1);
+		given(restaurantSlotRepository.fetchById(slotId))
+				.willThrow(new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "RestaurantSlot"));
 
-		// when & then
-		assertThatThrownBy(() -> reservationService.cancel(customer.getEmail(), reservationId))
-				.isInstanceOf(ReservationException.class)
-				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
-						.isEqualTo(ErrorCode.RESERVATION_FORBIDDEN));
+		assertThatCode(() -> reservationService.confirmCancel(reservation)).doesNotThrowAnyException();
 
-		verifyNoInteractions(dailySlotCapacityRepository);
-		verify(reservationRepository, never()).updateStatus(any());
+		verify(dailySlotCapacityRepository).incrementRemainingCount(slotId, visitAt.toLocalDate(), 2);
+		verify(transactionHandler, times(1)).runAfterCommit(any());
 	}
 
 	@Test
-	@DisplayName("예약 취소 실패 - 이미 취소된 예약이면 400 예외가 발생한다.")
-	void cancel_fail_alreadyCanceled() {
-		// given
-		Long reservationId = 999L;
-		LocalDateTime now = LocalDateTime.now();
-		LocalDateTime visitAt = now.plusDays(2);
-
-		Reservation reservation = ReservationFixture.canceled()
-				.reservationId(reservationId)
-				.userId(customer.getUserId())
-				.slotId(restaurantSlot.getSlotId())
-				.visitAt(visitAt)
-				.partySize(2)
+	@DisplayName("취소 확정 중복 메시지 - 0 rows 시 좌석 복원 없이 조용히 종료 (ack)")
+	void confirmCancel_duplicate_silentReturn() {
+		Reservation reservation = ReservationFixture.cancelPending()
+				.reservationId(1L)
 				.build();
 
-		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
-		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
+		given(reservationRepository.updateStatusConditional(
+				1L, ReservationStatus.CANCEL_PENDING, ReservationStatus.CANCELED)).willReturn(0);
 
-		// when & then
-		assertThatThrownBy(() -> reservationService.cancel(customer.getEmail(), reservationId))
-				.isInstanceOf(ReservationException.class)
-				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
-						.isEqualTo(ErrorCode.RESERVATION_ALREADY_CANCELED));
+		assertThatCode(() -> reservationService.confirmCancel(reservation)).doesNotThrowAnyException();
 
-		verifyNoInteractions(dailySlotCapacityRepository);
-		verify(reservationRepository, never()).updateStatus(any());
-	}
-
-	@Test
-	@DisplayName("예약 취소 실패 - 취소 가능 기한(24시간)이 지나면 400 예외가 발생한다.")
-	void cancel_fail_deadlinePassed() {
-		// given
-		Long reservationId = 999L;
-		LocalDateTime now = LocalDateTime.now();
-		LocalDateTime visitAt = now.plusHours(23);
-
-		Reservation reservation = ReservationFixture.confirmed()
-				.reservationId(reservationId)
-				.userId(customer.getUserId())
-				.slotId(restaurantSlot.getSlotId())
-				.visitAt(visitAt)
-				.partySize(2)
-				.build();
-
-		given(userRepository.fetchByEmail(customer.getEmail())).willReturn(customer);
-		given(reservationRepository.fetchById(reservationId)).willReturn(reservation);
-
-		// when & then
-		assertThatThrownBy(() -> reservationService.cancel(customer.getEmail(), reservationId))
-				.isInstanceOf(ReservationException.class)
-				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
-						.isEqualTo(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED));
-
-		verifyNoInteractions(dailySlotCapacityRepository);
-		verify(reservationRepository, never()).updateStatus(any());
+		verify(dailySlotCapacityRepository, never()).incrementRemainingCount(anyLong(), any(), anyInt());
+		verify(transactionHandler, never()).runAfterCommit(any());
 	}
 }

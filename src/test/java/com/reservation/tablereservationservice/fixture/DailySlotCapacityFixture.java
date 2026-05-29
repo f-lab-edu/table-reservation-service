@@ -20,7 +20,6 @@ public class DailySlotCapacityFixture {
 	private Long slotId = 10L;
 	private LocalDate date = LocalDate.of(2030, 1, 1);
 	private int remainingCount = 10;
-	private Long version = 0L;
 
 	public static DailySlotCapacityFixture capacity() {
 		return new DailySlotCapacityFixture();
@@ -30,8 +29,7 @@ public class DailySlotCapacityFixture {
 		DailySlotCapacity.DailySlotCapacityBuilder builder = DailySlotCapacity.builder()
 			.slotId(slotId)
 			.date(date)
-			.remainingCount(remainingCount)
-			.version(version);
+			.remainingCount(remainingCount);
 
 		if (capacityId != null) {
 			builder.capacityId(capacityId);

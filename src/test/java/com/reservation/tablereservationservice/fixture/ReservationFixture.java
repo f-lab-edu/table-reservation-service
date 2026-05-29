@@ -36,6 +36,10 @@ public class ReservationFixture {
 		return new ReservationFixture().status(ReservationStatus.CONFIRMED);
 	}
 
+	public static ReservationFixture cancelPending() {
+		return new ReservationFixture().status(ReservationStatus.CANCEL_PENDING);
+	}
+
 	public static ReservationFixture canceled() {
 		return new ReservationFixture().status(ReservationStatus.CANCELED);
 	}

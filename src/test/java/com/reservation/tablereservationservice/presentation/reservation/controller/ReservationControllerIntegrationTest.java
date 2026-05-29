@@ -10,6 +10,7 @@ import java.time.LocalTime;
 import java.util.Set;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -37,6 +39,7 @@ import com.reservation.tablereservationservice.fixture.RestaurantFixture;
 import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
 import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.jwt.JwtProvider;
+import com.reservation.tablereservationservice.infrastructure.payment.messaging.CancelQueuePublisher;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 import io.restassured.RestAssured;
@@ -77,7 +80,11 @@ class ReservationControllerIntegrationTest {
 	@Autowired
 	private ReservationStreamProperties streamProperties;
 
+	@MockitoBean
+	private CancelQueuePublisher cancelQueuePublisher;
+
 	private Long slotId;
+	private Long customerId;
 	private String customerAccessToken;
 	private String ownerAccessToken;
 
@@ -95,6 +102,7 @@ class ReservationControllerIntegrationTest {
 		User owner = userRepository.save(UserFixture.owner().build());
 		User customer = userRepository.save(UserFixture.customer().build());
 
+		this.customerId = customer.getUserId();
 		this.ownerAccessToken = jwtProvider.createAccessToken(owner.getEmail(), UserRole.OWNER);
 		this.customerAccessToken = jwtProvider.createAccessToken(customer.getEmail(), UserRole.CUSTOMER);
 
@@ -118,12 +126,21 @@ class ReservationControllerIntegrationTest {
 				.slotId(slotId)
 				.date(BASE_DATE)
 				.remainingCount(10)
-				.version(0L)
-				.build()
+								.build()
 		);
 
 		// Redis 좌석 선점용 remaining key 초기화
 		redisTemplate.opsForValue().set(streamProperties.remainingKey(slotId, BASE_DATE.toString()), "10");
+	}
+
+	@AfterEach
+	void tearDown() {
+		cleanupRedis();
+		reservationRepository.deleteAll();
+		dailySlotCapacityRepository.deleteAll();
+		restaurantSlotRepository.deleteAll();
+		restaurantRepository.deleteAll();
+		userRepository.deleteAll();
 	}
 
 	private void cleanupRedis() {
@@ -228,7 +245,7 @@ class ReservationControllerIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("내 예약 목록 조회 성공 - status 파라미터 없으면 CONFIRMED + CANCELED 모두 조회")
+	@DisplayName("내 예약 목록 조회 성공 - status 파라미터 없으면 PENDING + CANCEL_PENDING 모두 조회")
 	void getReservations_me_success_whenStatusOmitted() {
 		// given: 서로 다른 날짜로 2건 생성 후 1건 취소
 		LocalDate confirmedDate = BASE_DATE;
@@ -239,14 +256,21 @@ class ReservationControllerIntegrationTest {
 			.slotId(slotId)
 			.date(cancelDate)
 			.remainingCount(10)
-			.version(0L)
-			.build());
+						.build());
 		redisTemplate.opsForValue().set(streamProperties.remainingKey(slotId, cancelDate.toString()), "10");
 
 		createReservation(customerAccessToken, slotId, confirmedDate, 2, "confirmed");
 
-		Long toCancelId = createReservation(customerAccessToken, slotId, cancelDate, 1, "cancel");
-		cancelReservation(customerAccessToken, toCancelId);
+		Reservation toCancel = reservationRepository.save(Reservation.builder()
+			.userId(customerId)
+			.slotId(slotId)
+			.visitAt(LocalDateTime.of(cancelDate, BASE_TIME))
+			.partySize(1)
+			.note("cancel")
+			.status(ReservationStatus.CONFIRMED)
+			.idempotencyKey(UUID.randomUUID().toString())
+			.build());
+		cancelReservation(customerAccessToken, toCancel.getReservationId());
 
 		given()
 			.contentType(ContentType.JSON)
@@ -260,7 +284,7 @@ class ReservationControllerIntegrationTest {
 			.body("code", equalTo(200))
 			.body("message", equalTo("예약 조회 성공"))
 			.body("data.content.size()", equalTo(2))
-			.body("data.content.status", containsInAnyOrder("PENDING", "CANCELED"));
+			.body("data.content.status", containsInAnyOrder("PENDING", "CANCEL_PENDING"));
 	}
 
 	@Test
@@ -287,10 +311,19 @@ class ReservationControllerIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("예약 취소 성공 - CUSTOMER 토큰이면 200 + DB status=CANCELED 반영")
+	@DisplayName("예약 취소 성공 - CUSTOMER 토큰이면 200 + DB status=CANCEL_PENDING 반영 (비동기)")
 	void cancel_success_whenCustomerToken() {
-		// given
-		Long reservationId = createReservation(customerAccessToken, slotId, BASE_DATE, 2, "note");
+		// given: 결제 완료 시나리오 — CONFIRMED 예약 직접 저장
+		Reservation confirmed = reservationRepository.save(Reservation.builder()
+			.userId(customerId)
+			.slotId(slotId)
+			.visitAt(BASE_VISIT_AT)
+			.partySize(2)
+			.note("note")
+			.status(ReservationStatus.CONFIRMED)
+			.idempotencyKey(UUID.randomUUID().toString())
+			.build());
+		Long reservationId = confirmed.getReservationId();
 
 		// when & then (API 응답)
 		given()
@@ -301,14 +334,12 @@ class ReservationControllerIntegrationTest {
 		.then()
 			.statusCode(200)
 			.body("code", equalTo(200))
-			.body("message", equalTo("예약 취소 성공"))
-			.body("data.reservationId", equalTo(reservationId.intValue()))
-			.body("data.status", equalTo("CANCELED"));
+			.body("message", equalTo("예약 취소 성공"));
 
-		// then (DB 반영)
+		// then (DB 반영 — 비동기 취소이므로 CANCEL_PENDING)
 		Reservation stored = reservationRepository.findById(reservationId)
 			.orElseThrow(() -> new IllegalStateException("Reservation not found"));
-		assertThat(stored.getStatus()).isEqualTo(ReservationStatus.CANCELED);
+		assertThat(stored.getStatus()).isEqualTo(ReservationStatus.CANCEL_PENDING);
 	}
 
 	private Long createReservation(String accessToken, Long slotId, LocalDate date, int partySize, String note) {
