@@ -2,10 +2,12 @@ package com.reservation.tablereservationservice.application.reservation.service;
 
 import static java.util.stream.Collectors.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import org.springframework.data.domain.Page;
@@ -13,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.reservation.tablereservationservice.application.notification.NotificationService;
-import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
@@ -27,6 +28,7 @@ import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
+import com.reservation.tablereservationservice.infrastructure.redis.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
@@ -45,6 +47,7 @@ public class ReservationService {
 	private final DailySlotCapacityRepository dailySlotCapacityRepository;
 	private final ReservationRepository reservationRepository;
 	private final RestaurantRepository restaurantRepository;
+	private final ReservationPublisher reservationPublisher;
 	private final NotificationService notificationService;
 	private final TransactionHandler transactionHandler;
 
@@ -56,10 +59,10 @@ public class ReservationService {
 
 		validateDuplicatedTime(user.getUserId(), visitAt);
 
-		DailySlotCapacity capacity = dailySlotCapacityRepository
+		dailySlotCapacityRepository
 				.findBySlotIdAndDate(slot.getSlotId(), requestDto.getDate())
 				.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
-		decreaseCapacity(capacity, requestDto.getPartySize());
+		decreaseCapacity(slot.getSlotId(), requestDto.getDate(), requestDto.getPartySize());
 
 		Reservation reservation = Reservation.builder()
 				.userId(user.getUserId())
@@ -73,6 +76,18 @@ public class ReservationService {
 
 		Reservation saved = reservationRepository.save(reservation);
 		return new ReservationCreateResult(saved, slot.depositAmount(requestDto.getPartySize()));
+	}
+
+	@Transactional
+	public void markCancelPending(Long reservationId) {
+		int affected = reservationRepository.updateStatusConditional(
+				reservationId,
+				ReservationStatus.CONFIRMED,
+				ReservationStatus.CANCEL_PENDING
+		);
+		if (affected == 0) {
+			throw new ReservationException(ErrorCode.RESERVATION_CONCURRENCY_ERROR);
+		}
 	}
 
 	@Transactional(readOnly = true)
@@ -127,24 +142,43 @@ public class ReservationService {
 	}
 
 	@Transactional
-	public Reservation cancel(String email, Long reservationId) {
-		User user = userRepository.fetchByEmail(email);
-		Reservation reservation = reservationRepository.fetchById(reservationId);
+	public void confirmCancel(Reservation reservation) {
+		int affected = reservationRepository.updateStatusConditional(
+				reservation.getReservationId(),
+				ReservationStatus.CANCEL_PENDING,
+				ReservationStatus.CANCELED
+		);
+		if (affected == 0) {
+			log.warn("[CANCEL_CONFIRM] 이미 CANCELED — 중복 메시지 reservationId={}", reservation.getReservationId());
+			return;
+		}
 
-		validateCancelable(user.getUserId(), reservation, LocalDateTime.now());
-		reservation.cancel();
+		dailySlotCapacityRepository.incrementRemainingCount(
+				reservation.getSlotId(),
+				reservation.getVisitAt().toLocalDate(),
+				reservation.getPartySize()
+		);
 
-		DailySlotCapacity capacity = dailySlotCapacityRepository.findBySlotIdAndDate(reservation.getSlotId(), reservation.getVisitAt().toLocalDate())
-				.orElseThrow(() -> new ReservationException(ErrorCode.RESERVATION_SLOT_NOT_OPENED));
-
-		restoreCapacity(capacity, reservation.getPartySize());
-		reservationRepository.updateStatus(reservation);
-
-		Restaurant restaurant = findRestaurantBySlotId(reservation.getSlotId());
 		transactionHandler.runAfterCommit(() ->
-				notificationService.notifyCanceled(reservation, restaurant.getOwnerId(), restaurant.getName()));
+				reservationPublisher.releaseSeat(
+						reservation.getSlotId(),
+						reservation.getVisitAt().toLocalDate(),
+						reservation.getPartySize()
+				));
 
-		return reservation;
+		findRestaurantBySlotId(reservation.getSlotId()).ifPresent(restaurant ->
+				transactionHandler.runAfterCommit(() ->
+						notificationService.notifyCanceled(reservation, restaurant.getOwnerId(), restaurant.getName())));
+	}
+
+	private Optional<Restaurant> findRestaurantBySlotId(Long slotId) {
+		try {
+			RestaurantSlot slot = restaurantSlotRepository.fetchById(slotId);
+			return restaurantRepository.findById(slot.getRestaurantId());
+		} catch (Exception e) {
+			log.warn("[CANCEL_CONFIRM] 레스토랑 조회 실패 — 알림 생략 slotId={}", slotId, e);
+			return Optional.empty();
+		}
 	}
 
 	private void validateDuplicatedTime(Long userId, LocalDateTime visitAt) {
@@ -154,28 +188,10 @@ public class ReservationService {
 		}
 	}
 
-	private void decreaseCapacity(DailySlotCapacity capacity, int partySize) {
-		if (!capacity.decrease(partySize)) {
+	private void decreaseCapacity(Long slotId, LocalDate date, int partySize) {
+		if (dailySlotCapacityRepository.decreaseRemainingCount(slotId, date, partySize) == 0) {
 			throw new ReservationException(ErrorCode.RESERVATION_CAPACITY_NOT_ENOUGH);
 		}
-		dailySlotCapacityRepository.updateRemainingCount(capacity);
-	}
-
-	private void validateCancelable(Long userId, Reservation reservation, LocalDateTime now) {
-		if (!reservation.isOwner(userId)) {
-			throw new ReservationException(ErrorCode.RESERVATION_FORBIDDEN);
-		}
-		if (reservation.isAlreadyCanceled()) {
-			throw new ReservationException(ErrorCode.RESERVATION_ALREADY_CANCELED);
-		}
-		if (!reservation.canCancelAt(now)) {
-			throw new ReservationException(ErrorCode.RESERVATION_CANCEL_DEADLINE_PASSED);
-		}
-	}
-
-	private void restoreCapacity(DailySlotCapacity capacity, int partySize) {
-		capacity.increase(partySize);
-		dailySlotCapacityRepository.updateRemainingCount(capacity);
 	}
 
 	private Page<ReservationListResponseDto> createReservationListDtoPage(
@@ -212,11 +228,5 @@ public class ReservationService {
 		List<Long> restaurantIds = idToSlot.values().stream().map(RestaurantSlot::getRestaurantId).distinct().toList();
 		return restaurantRepository.findAllById(restaurantIds).stream()
 				.collect(toMap(Restaurant::getRestaurantId, Function.identity()));
-	}
-
-	private Restaurant findRestaurantBySlotId(Long slotId) {
-		RestaurantSlot slot = restaurantSlotRepository.fetchById(slotId);
-		return restaurantRepository.findById(slot.getRestaurantId())
-				.orElseThrow(() -> new ReservationException(ErrorCode.RESOURCE_NOT_FOUND, "Restaurant"));
 	}
 }
