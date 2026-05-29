@@ -17,6 +17,8 @@ public interface DailySlotCapacityEntityRepository extends JpaRepository<DailySl
 
 	List<DailySlotCapacityEntity> findAllByDateGreaterThanEqual(LocalDate date);
 
+	List<DailySlotCapacityEntity> findAllBySlotIdInAndDate(List<Long> slotIds, LocalDate date);
+
 	@Modifying
 	@Query("UPDATE DailySlotCapacityEntity d SET d.remainingCount = d.remainingCount + :partySize WHERE d.slotId = :slotId AND d.date = :date")
 	void incrementRemainingCount(@Param("slotId") Long slotId, @Param("date") LocalDate date, @Param("partySize") int partySize);

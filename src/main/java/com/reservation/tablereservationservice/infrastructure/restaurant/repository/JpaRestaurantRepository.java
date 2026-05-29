@@ -3,8 +3,11 @@ package com.reservation.tablereservationservice.infrastructure.restaurant.reposi
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
+import com.reservation.tablereservationservice.domain.restaurant.CategoryCode;
+import com.reservation.tablereservationservice.domain.restaurant.RegionCode;
 import com.reservation.tablereservationservice.domain.restaurant.Restaurant;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantRepository;
 import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantEntity;
@@ -36,6 +39,15 @@ public class JpaRestaurantRepository implements RestaurantRepository {
 		return restaurantEntityRepository.findAllById(restaurantIds).stream()
 			.map(RestaurantMapper.INSTANCE::toDomain)
 			.toList();
+	}
+
+	@Override
+	public List<Restaurant> findByFilterWithCursor(RegionCode regionCode, CategoryCode categoryCode, Long cursor, int size) {
+		return restaurantEntityRepository
+				.findByFilterWithCursor(regionCode, categoryCode, cursor, PageRequest.of(0, size))
+				.stream()
+				.map(RestaurantMapper.INSTANCE::toDomain)
+				.toList();
 	}
 
 	@Override

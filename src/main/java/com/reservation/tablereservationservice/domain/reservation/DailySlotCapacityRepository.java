@@ -14,6 +14,8 @@ public interface DailySlotCapacityRepository {
 
 	List<DailySlotCapacity> findAllFromDate(LocalDate date);
 
+	List<DailySlotCapacity> findAllBySlotIdsAndDate(List<Long> slotIds, LocalDate date);
+
 	DailySlotCapacity save(DailySlotCapacity dailySlotCapacity);
 
 	void deleteAll();

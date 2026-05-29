@@ -1,7 +1,5 @@
 package com.reservation.tablereservationservice.global.config;
 
-import jakarta.servlet.DispatcherType;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -20,6 +18,7 @@ import com.reservation.tablereservationservice.global.jwt.JwtAuthenticationEntry
 import com.reservation.tablereservationservice.global.jwt.JwtAuthenticationFilter;
 import com.reservation.tablereservationservice.global.jwt.JwtProvider;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 
 @Configuration
@@ -35,32 +34,34 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		http
-			.formLogin(AbstractHttpConfigurer::disable)
-			.httpBasic(AbstractHttpConfigurer::disable)
-			.cors(Customizer.withDefaults())
-			.csrf(AbstractHttpConfigurer::disable)
-			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.formLogin(AbstractHttpConfigurer::disable)
+				.httpBasic(AbstractHttpConfigurer::disable)
+				.cors(Customizer.withDefaults())
+				.csrf(AbstractHttpConfigurer::disable)
+				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-			.exceptionHandling(ex -> ex
-				.authenticationEntryPoint(jwtAuthenticationEntryPoint)
-				.accessDeniedHandler(jwtAccessDeniedHandler)
-			)
+				.exceptionHandling(ex -> ex
+						.authenticationEntryPoint(jwtAuthenticationEntryPoint)
+						.accessDeniedHandler(jwtAccessDeniedHandler)
+				)
 
-			.authorizeHttpRequests(auth -> auth
-				.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
-				.requestMatchers(
-					"/api/users/signup",
-					"/api/users/login",
-					"/api/health",
-					"/actuator/prometheus"
-				).permitAll()
-				.anyRequest().authenticated()
-			)
+				.authorizeHttpRequests(auth -> auth
+						.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
+						.requestMatchers(
+								"/api/users/signup",
+								"/api/users/login",
+								"/api/health",
+								"/actuator/prometheus",
+								"/api/restaurants",
+								"/api/restaurants/**"
+						).permitAll()
+						.anyRequest().authenticated()
+				)
 
-			.addFilterBefore(
-				new JwtAuthenticationFilter(jwtProvider, jwtAuthenticationEntryPoint),
-				UsernamePasswordAuthenticationFilter.class
-			);
+				.addFilterBefore(
+						new JwtAuthenticationFilter(jwtProvider, jwtAuthenticationEntryPoint),
+						UsernamePasswordAuthenticationFilter.class
+				);
 
 		return http.build();
 	}

@@ -13,6 +13,8 @@ public interface RestaurantSlotRepository {
 
 	List<RestaurantSlot> findAllById(List<Long> slotIds);
 
+	List<RestaurantSlot> findAllByRestaurantId(Long restaurantId);
+
 	void deleteAll();
 
 }

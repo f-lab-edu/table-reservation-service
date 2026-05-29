@@ -23,7 +23,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/table-reservation-service?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/table-reservation-service?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&characterEncoding=UTF-8&useUnicode=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
@@ -47,6 +47,7 @@ services:
       MYSQL_DATABASE: table-reservation-service
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: Asia/Seoul
+      LANG: C.UTF-8
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s

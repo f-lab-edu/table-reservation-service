@@ -3,8 +3,6 @@ package com.reservation.tablereservationservice.domain.restaurant;
 import java.util.List;
 import java.util.Optional;
 
-import com.reservation.tablereservationservice.infrastructure.restaurant.entity.RestaurantEntity;
-
 public interface RestaurantRepository {
 
 	Optional<Restaurant> findById(Long restaurantId);
@@ -12,6 +10,8 @@ public interface RestaurantRepository {
 	List<Restaurant> findAllByOwnerId(Long ownerId);
 
 	List<Restaurant> findAllById(List<Long> restaurantId);
+
+	List<Restaurant> findByFilterWithCursor(RegionCode regionCode, CategoryCode categoryCode, Long cursor, int size);
 
 	Restaurant save(Restaurant restaurant);
 
