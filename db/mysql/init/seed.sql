@@ -3,6 +3,20 @@ INSERT INTO users (user_id, email, password, name, phone, user_role) VALUES
 (1, 'owner@test.com',    '{noop}Test1234@', '점주',   '010-1111-1111', 'OWNER'),
 (2, 'customer@test.com', '{noop}Test1234@', '테스터', '010-2222-2222', 'CUSTOMER');
 
+-- 부하 테스트용 가상 고객 (k6: customer1@test.com ~ customer100@test.com)
+INSERT INTO users (email, password, name, phone, user_role)
+SELECT
+    CONCAT('customer', n, '@test.com'),
+    '{noop}Test1234@',
+    CONCAT('tester', n),
+    CONCAT('010-', LPAD(n, 4, '0'), '-0000'),
+    'CUSTOMER'
+FROM (
+    SELECT @row := @row + 1 AS n
+    FROM information_schema.columns, (SELECT @row := 0) r
+    LIMIT 100
+) numbers;
+
 -- 식당 (owner_id = 1)
 -- RG01:강남구 RG02:종로구 RG03:용산구 RG04:서초구 RG05:성동구 RG06:마포구 RG07:영등포구 RG08:송파구 RG09:양천구
 -- CT01:한식 CT02:일식 CT03:중식 CT04:스테이크 CT05:이탈리안 CT06:디저트 CT07:정육 CT08:해산물 CT09:주류/바

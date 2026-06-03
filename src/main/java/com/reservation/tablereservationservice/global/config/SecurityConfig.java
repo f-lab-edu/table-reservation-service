@@ -1,5 +1,6 @@
 package com.reservation.tablereservationservice.global.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -13,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.reservation.tablereservationservice.global.filter.LoadTestAuthFilter;
 import com.reservation.tablereservationservice.global.jwt.JwtAccessDeniedHandler;
 import com.reservation.tablereservationservice.global.jwt.JwtAuthenticationEntryPoint;
 import com.reservation.tablereservationservice.global.jwt.JwtAuthenticationFilter;
@@ -30,6 +32,9 @@ public class SecurityConfig {
 	private final JwtProvider jwtProvider;
 	private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 	private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+
+	@Autowired(required = false)
+	private LoadTestAuthFilter loadTestAuthFilter;
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -62,6 +67,10 @@ public class SecurityConfig {
 						new JwtAuthenticationFilter(jwtProvider, jwtAuthenticationEntryPoint),
 						UsernamePasswordAuthenticationFilter.class
 				);
+
+		if (loadTestAuthFilter != null) {
+			http.addFilterBefore(loadTestAuthFilter, UsernamePasswordAuthenticationFilter.class);
+		}
 
 		return http.build();
 	}
