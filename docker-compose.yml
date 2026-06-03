@@ -22,12 +22,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/table-reservation-service?useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&characterEncoding=UTF-8&useUnicode=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx768m"
 
   mysql:
     image: mysql:8.4
@@ -85,3 +84,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.14.0
+    container_name: mysql-exporter
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "9104:9104"
+    environment:
+      DATA_SOURCE_NAME: "root:${MYSQL_ROOT_PASSWORD}@(mysql:3306)/"
+    command:
+      - --collect.global_status
+      - --collect.info_schema.innodb_metrics
