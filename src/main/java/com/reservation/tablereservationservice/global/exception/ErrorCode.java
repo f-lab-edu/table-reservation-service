@@ -51,6 +51,7 @@ public enum ErrorCode {
 	TOSS_API_UNAVAILABLE("결제 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE),
 
 	// 500 Internal Server Error
+	INVALID_STATUS_TRANSITION("허용되지 않은 예약 상태 전이입니다.", HttpStatus.INTERNAL_SERVER_ERROR),
 	INTERNAL_SERVER_ERROR("서버 내부 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
 
 	private final String message;

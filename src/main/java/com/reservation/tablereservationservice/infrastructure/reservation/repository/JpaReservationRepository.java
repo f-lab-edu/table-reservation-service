@@ -98,6 +98,9 @@ public class JpaReservationRepository implements ReservationRepository {
 	@Override
 	@Transactional
 	public int updateStatusConditional(Long id, ReservationStatus from, ReservationStatus to) {
+		if (!from.canTransitionTo(to)) {
+			throw new ReservationException(ErrorCode.INVALID_STATUS_TRANSITION);
+		}
 		return reservationEntityRepository.updateStatusConditional(id, from, to);
 	}
 
