@@ -1,5 +1,24 @@
 version: '3.7'
+
+networks:
+  monitor-net:
+    external: true
+  app-net:
+    external: true
+
 services:
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.14.0
+    container_name: mysql-exporter
+    environment:
+      DATA_SOURCE_NAME: "root:${MYSQL_ROOT_PASSWORD}@(mysql:3306)/"
+    command:
+      - --collect.global_status
+      - --collect.info_schema.innodb_metrics
+    networks:
+      - app-net     # MySQL에 접근하기 위해 앱 네트워크 참여
+      - monitor-net # Prometheus가 메트릭을 수집하기 위해 모니터링 네트워크 참여
+
   prometheus:
     image: prom/prometheus
     container_name: prometheus
@@ -8,6 +27,11 @@ services:
     ports:
       - "9090:9090"
     restart: always
+    depends_on:
+      - mysql-exporter
+    networks:
+      - monitor-net # 모니터링 네트워크에만 속해 앱 서비스에 직접 접근 불가
+
   grafana:
     image: grafana/grafana
     container_name: grafana
@@ -16,3 +40,5 @@ services:
     restart: always
     depends_on:
       - prometheus
+    networks:
+      - monitor-net
