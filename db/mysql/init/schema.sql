@@ -5,8 +5,8 @@ CREATE TABLE users (
     name        VARCHAR(50)  NOT NULL             COMMENT '이름',
     phone       VARCHAR(20)                       COMMENT '전화번호',
     user_role   VARCHAR(20)  NOT NULL             COMMENT '사용자 역할',
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
-    modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시'
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
+    modified_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='사용자';
 
 
@@ -20,8 +20,8 @@ CREATE TABLE restaurant (
     description     TEXT                              COMMENT '설명',
     main_menu_name  VARCHAR(100)                       COMMENT '대표 메뉴명',
     main_menu_price INT                               COMMENT '대표 메뉴 가격',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
-    modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
+    modified_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_restaurant_owner
         FOREIGN KEY (owner_id) REFERENCES users(user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='식당';
@@ -33,8 +33,8 @@ CREATE TABLE restaurant_slot (
     time               TIME   NOT NULL                   COMMENT '예약 시간',
     max_capacity       INT    NOT NULL                   COMMENT '슬롯 최대 수용 인원',
     deposit_per_person INT    NOT NULL DEFAULT 0          COMMENT '인당 예약금',
-    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
-    modified_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
+    modified_at        DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_slot_restaurant
         FOREIGN KEY (restaurant_id) REFERENCES restaurant(restaurant_id),
     CONSTRAINT uq_restaurant_time UNIQUE (restaurant_id, time)
@@ -46,8 +46,8 @@ CREATE TABLE daily_slot_capacity (
     slot_id         BIGINT NOT NULL                   COMMENT '슬롯 FK',
     date            DATE   NOT NULL                   COMMENT '날짜',
     remaining_count INT    NOT NULL                   COMMENT '잔여 수량',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
-    modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
+    modified_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_capacity_slot
         FOREIGN KEY (slot_id) REFERENCES restaurant_slot(slot_id),
     CONSTRAINT uq_slot_date UNIQUE (slot_id, date)
@@ -64,8 +64,8 @@ CREATE TABLE reservation (
     status          VARCHAR(20)  NOT NULL              COMMENT '예약 상태',
     idempotency_key VARCHAR(36)  UNIQUE                COMMENT '멱등성 키',
     payment_key     VARCHAR(200)                       COMMENT 'Toss 결제 키 (approve 요청 시 저장)',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
-    modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
+    modified_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_reservation_user
         FOREIGN KEY (user_id) REFERENCES users(user_id),
     CONSTRAINT fk_reservation_slot
@@ -82,8 +82,8 @@ CREATE TABLE payment (
     amount          INT          NOT NULL              COMMENT '결제 금액',
     status          VARCHAR(10)  NOT NULL              COMMENT '결제 상태',
     approved_at     DATETIME     NOT NULL              COMMENT '결제 승인 일시',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
-    modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
+    modified_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_payment_reservation
         FOREIGN KEY (reservation_id) REFERENCES reservation(reservation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='결제';
@@ -97,8 +97,8 @@ CREATE TABLE notification (
     title           VARCHAR(100) NOT NULL              COMMENT '알림 제목',
     content         VARCHAR(500) NOT NULL              COMMENT '알림 내용',
     is_read         TINYINT(1)   NOT NULL DEFAULT 0    COMMENT '읽음 여부',
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
-    modified_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP                   COMMENT '생성일시',
+    modified_at     DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
     CONSTRAINT fk_notification_receiver
         FOREIGN KEY (receiver_id) REFERENCES users(user_id),
     CONSTRAINT fk_notification_reservation
