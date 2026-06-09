@@ -56,7 +56,14 @@ public class ReservationIdempotencyAspect {
 
 		if (Boolean.FALSE.equals(acquired)) {
 			String cached = redisTemplate.opsForValue().get(redisKey);
-			if (cached != null && !"PROCESSING".equals(cached)) {
+
+			if ("PROCESSING".equals(cached)) {
+				// 동일 멱등키 요청이 처리 중 — 즉시 차단(잠시 후 재시도).
+				// 락 TTL 만료·Redis 장애로 동시 통과한 예외 케이스는 DB 유니크 제약이 최종 보장한다.
+				log.warn("[IDEMPOTENCY] 처리 중 동시 요청 차단 idempotencyKey={}", idempotencyKey);
+				throw new ReservationException(ErrorCode.RESERVATION_CONCURRENCY_ERROR);
+			}
+			if (cached != null) {
 				try {
 					return buildFromCache(cached);
 				} catch (Exception e) {
@@ -64,10 +71,8 @@ public class ReservationIdempotencyAspect {
 					redisTemplate.delete(redisKey);
 					// 아래 proceed()로 fall-through하여 새 요청으로 처리
 				}
-			} else {
-				// PROCESSING 상태(동시 진입) — DataIntegrityViolationException 안전망으로 처리
-				log.warn("[IDEMPOTENCY] 동시 요청 감지 idempotencyKey={}", idempotencyKey);
 			}
+			// cached == null: 락이 막 해제됨(1차 실패로 삭제 / TTL 만료) → fall-through하여 재처리
 		}
 
 		try {

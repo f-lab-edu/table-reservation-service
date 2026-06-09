@@ -29,6 +29,8 @@ import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlot;
 import com.reservation.tablereservationservice.domain.restaurant.RestaurantSlotRepository;
 import com.reservation.tablereservationservice.fixture.ReservationFixture;
 import com.reservation.tablereservationservice.fixture.RestaurantSlotFixture;
+import com.reservation.tablereservationservice.global.exception.ErrorCode;
+import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.infrastructure.payment.messaging.CancelQueuePublisher;
 import com.reservation.tablereservationservice.infrastructure.redis.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
@@ -137,6 +139,22 @@ class ReservationIdempotencyAspectTest {
 		verify(reservationService, times(1)).reserve(anyString(), any(), eq(idempotencyKey));
 		// 두 번째 요청은 proceed 전에 반환되므로 holdSeat도 1회만 호출
 		verify(reservationPublisher, times(1)).holdSeat(anyLong(), any(), anyInt());
+	}
+
+	@Test
+	@DisplayName("처리 중(PROCESSING) 동시 요청 - proceed 없이 409(RESERVATION_CONCURRENCY_ERROR)로 차단")
+	void concurrentRequest_whileProcessing_blockedWith409() {
+		String idempotencyKey = UUID.randomUUID().toString();
+		// 다른 요청이 처리 중인 상태를 Redis에 직접 세팅
+		redisTemplate.opsForValue().set(KEY_PREFIX + idempotencyKey, "PROCESSING");
+
+		assertThatThrownBy(() -> reservationFacade.reserve("user@test.com", req, idempotencyKey))
+				.isInstanceOfSatisfying(ReservationException.class,
+						ex -> assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.RESERVATION_CONCURRENCY_ERROR));
+
+		// 처리 중 차단이므로 proceed 자체가 실행되지 않음 (holdSeat·service 미호출)
+		verify(reservationPublisher, never()).holdSeat(anyLong(), any(), anyInt());
+		verify(reservationService, never()).reserve(anyString(), any(), anyString());
 	}
 
 	@Test
