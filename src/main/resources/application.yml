@@ -61,10 +61,14 @@ resilience4j:
     instances:
       tossPayment:
         max-attempts: 3
-        wait-duration: 1s
+        wait-duration: 1s                          # 초기 대기 (1차 재시도 전)
+        enable-exponential-backoff: true           # 1s → 2s … 장애 서버에 가중 부하를 주지 않도록 점증
+        exponential-backoff-multiplier: 2
+        enable-randomized-wait: true               # jitter — 동시 재시도가 같은 시점에 몰리는 storm 방지
+        randomized-wait-factor: 0.5
         retry-exceptions:
           - java.io.IOException                                             # 네트워크 단절
-          - org.springframework.web.client.ResourceAccessException          # 연결 타임아웃
+          - org.springframework.web.client.ResourceAccessException          # 연결/읽기 타임아웃
           - org.springframework.web.client.HttpServerErrorException         # Toss 5xx
         ignore-exceptions:
           - org.springframework.web.client.HttpClientErrorException         # 4xx 재시도 금지
