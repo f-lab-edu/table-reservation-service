@@ -104,3 +104,15 @@ CREATE TABLE notification (
     CONSTRAINT fk_notification_reservation
         FOREIGN KEY (reservation_id) REFERENCES reservation(reservation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='알림';
+
+
+CREATE TABLE outbox_event (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT 'Outbox PK',
+    aggregate_id  BIGINT       NOT NULL              COMMENT '집계 ID (예: reservationId)',
+    event_type    VARCHAR(50)  NOT NULL              COMMENT '이벤트 유형 (예: RESERVATION_CANCEL)',
+    payload       JSON         NOT NULL              COMMENT '발행할 메시지 본문',
+    status        VARCHAR(20)  NOT NULL DEFAULT 'PENDING' COMMENT '발행 상태 (PENDING/PUBLISHED)',
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일시',
+    published_at  DATETIME     NULL                  COMMENT '발행 완료 일시',
+    INDEX idx_outbox_status_created (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='트랜잭셔널 아웃박스';

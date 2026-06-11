@@ -121,14 +121,6 @@ public class JpaReservationRepository implements ReservationRepository {
 	}
 
 	@Override
-	public List<Reservation> findCancelPendingBefore(LocalDateTime createdBefore) {
-		return reservationEntityRepository.findCancelPendingBefore(createdBefore)
-				.stream()
-				.map(ReservationMapper.INSTANCE::toDomain)
-				.toList();
-	}
-
-	@Override
 	public void deleteAll() {
 		reservationEntityRepository.deleteAll();
 	}

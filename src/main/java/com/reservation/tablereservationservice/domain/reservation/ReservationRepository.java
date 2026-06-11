@@ -43,7 +43,5 @@ public interface ReservationRepository {
 
 	List<Reservation> findPendingBefore(LocalDateTime createdBefore);
 
-	List<Reservation> findCancelPendingBefore(LocalDateTime createdBefore);
-
 	void deleteAll();
 }

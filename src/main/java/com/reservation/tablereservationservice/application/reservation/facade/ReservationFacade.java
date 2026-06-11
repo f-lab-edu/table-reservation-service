@@ -14,14 +14,11 @@ import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.annotation.Idempotent;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
-import com.reservation.tablereservationservice.infrastructure.payment.messaging.CancelQueuePublisher;
 import com.reservation.tablereservationservice.infrastructure.redis.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReservationFacade {
@@ -30,7 +27,6 @@ public class ReservationFacade {
 	private final ReservationPublisher reservationPublisher;
 	private final ReservationRepository reservationRepository;
 	private final UserRepository userRepository;
-	private final CancelQueuePublisher cancelQueuePublisher;
 
 	@Idempotent
 	public ReservationCreateResult reserve(String email, ReservationRequestDto requestDto, String idempotencyKey) {
@@ -54,17 +50,11 @@ public class ReservationFacade {
 		ReservationStatus status = reservation.getStatus();
 
 		if (status == ReservationStatus.CANCEL_PENDING) {
-			// MQ 발행 실패로 CANCEL_PENDING 체류 중인 경우 재발행하여 복구
-			// Outbox 패턴 도입 시 발행 실패 리스크가 사라지므로 제거 가능
-			log.info("[CANCEL] CANCEL_PENDING — MQ 재발행 reservationId={}", reservationId);
-			cancelQueuePublisher.publish(reservationId);
 			return;
 		}
 
 		validateCancelable(status, reservation);
-
 		reservationService.markCancelPending(reservationId);
-		cancelQueuePublisher.publish(reservationId);
 	}
 
 	private void validateCancelable(ReservationStatus status, Reservation reservation) {
