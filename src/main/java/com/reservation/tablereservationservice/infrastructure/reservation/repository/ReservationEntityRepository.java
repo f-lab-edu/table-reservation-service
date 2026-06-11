@@ -56,9 +56,6 @@ public interface ReservationEntityRepository extends JpaRepository<ReservationEn
 	@Query("select r from ReservationEntity r where r.status = 'PENDING' and r.createdAt < :createdBefore")
 	List<ReservationEntity> findPendingBefore(@Param("createdBefore") LocalDateTime createdBefore);
 
-	@Query("select r from ReservationEntity r where r.status = 'CANCEL_PENDING' and r.modifiedAt < :modifiedBefore")
-	List<ReservationEntity> findCancelPendingBefore(@Param("modifiedBefore") LocalDateTime modifiedBefore);
-
 	@Modifying
 	@Query("UPDATE ReservationEntity r SET r.status = :to WHERE r.reservationId = :id AND r.status = :from")
 	int updateStatusConditional(@Param("id") Long id, @Param("from") ReservationStatus from, @Param("to") ReservationStatus to);

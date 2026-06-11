@@ -17,11 +17,16 @@ public class CancelQueuePublisher {
 	private final CancelQueueProperties cancelQueueProperties;
 
 	public void publish(Long reservationId) {
+		CancelQueueMessage message = CancelQueueMessage.of(reservationId);
+		publish(message);
+	}
+
+	public void publish(CancelQueueMessage message) {
 		rabbitTemplate.convertAndSend(
 				cancelQueueProperties.getExchange(),
 				cancelQueueProperties.getRoutingKey(),
-				new CancelQueueMessage(reservationId)
+				message
 		);
-		log.info("[CANCEL_QUEUE] 취소 메시지 발행 reservationId={}", reservationId);
+		log.info("[CANCEL_QUEUE] 취소 메시지 발행 reservationId={}", message.getReservationId());
 	}
 }

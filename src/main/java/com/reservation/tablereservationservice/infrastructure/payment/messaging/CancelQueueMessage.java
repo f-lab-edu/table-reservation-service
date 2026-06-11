@@ -9,9 +9,13 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CancelQueueMessage {
 
+	public static final String OUTBOX_EVENT_TYPE = "RESERVATION_CANCEL";
+
 	private Long reservationId;
 
-	public CancelQueueMessage(Long reservationId) {
-		this.reservationId = reservationId;
+	public static CancelQueueMessage of(Long reservationId) {
+		CancelQueueMessage message = new CancelQueueMessage();
+		message.reservationId = reservationId;
+		return message;
 	}
 }

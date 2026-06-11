@@ -14,7 +14,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reservation.tablereservationservice.application.notification.NotificationService;
+import com.reservation.tablereservationservice.domain.outbox.OutboxEvent;
+import com.reservation.tablereservationservice.domain.outbox.OutboxRepository;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
 import com.reservation.tablereservationservice.domain.reservation.ReservationRepository;
@@ -28,6 +32,7 @@ import com.reservation.tablereservationservice.domain.user.UserRepository;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
+import com.reservation.tablereservationservice.infrastructure.payment.messaging.CancelQueueMessage;
 import com.reservation.tablereservationservice.infrastructure.redis.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.common.PageResponseDto;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationListResponseDto;
@@ -50,6 +55,8 @@ public class ReservationService {
 	private final ReservationPublisher reservationPublisher;
 	private final NotificationService notificationService;
 	private final TransactionHandler transactionHandler;
+	private final OutboxRepository outboxRepository;
+	private final ObjectMapper objectMapper;
 
 	@Transactional
 	public ReservationCreateResult reserve(String email, ReservationRequestDto requestDto, String idempotencyKey) {
@@ -88,6 +95,10 @@ public class ReservationService {
 		if (affected == 0) {
 			throw new ReservationException(ErrorCode.RESERVATION_CONCURRENCY_ERROR);
 		}
+
+		String payload = serializeCancelPayload(reservationId);
+		OutboxEvent event = OutboxEvent.pending(reservationId, CancelQueueMessage.OUTBOX_EVENT_TYPE, payload);
+		outboxRepository.save(event);
 	}
 
 	@Transactional(readOnly = true)
@@ -169,6 +180,15 @@ public class ReservationService {
 		findRestaurantBySlotId(reservation.getSlotId()).ifPresent(restaurant ->
 				transactionHandler.runAfterCommit(() ->
 						notificationService.notifyCanceled(reservation, restaurant.getOwnerId(), restaurant.getName())));
+	}
+
+	private String serializeCancelPayload(Long reservationId) {
+		try {
+			CancelQueueMessage message = CancelQueueMessage.of(reservationId);
+			return objectMapper.writeValueAsString(message);
+		} catch (JsonProcessingException e) {
+			throw new ReservationException(ErrorCode.INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	private Optional<Restaurant> findRestaurantBySlotId(Long slotId) {

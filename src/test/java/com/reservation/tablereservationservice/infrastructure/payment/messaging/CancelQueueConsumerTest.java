@@ -37,7 +37,7 @@ class CancelQueueConsumerTest {
 
 	@BeforeEach
 	void setUp() {
-		message = new CancelQueueMessage(RESERVATION_ID);
+		message = CancelQueueMessage.of(RESERVATION_ID);
 	}
 
 	@Test

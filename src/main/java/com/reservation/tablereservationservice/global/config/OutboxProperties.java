@@ -9,12 +9,9 @@ import lombok.Setter;
 @Getter
 @Setter
 @Component
-@ConfigurationProperties(prefix = "rabbitmq.cancel")
-public class CancelQueueProperties {
+@ConfigurationProperties(prefix = "outbox")
+public class OutboxProperties {
 
-	private String exchange;
-	private String queue;
-	private String routingKey;
-	private String dlx;
-	private String dlq;
+	private int batchSize; // 폴링 한 번에 가져올 최대 PENDING 건수
+	private int retentionDays; // PUBLISHED 레코드 보관 기간
 }
