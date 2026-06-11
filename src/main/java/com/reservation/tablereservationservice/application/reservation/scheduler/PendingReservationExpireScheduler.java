@@ -2,9 +2,7 @@ package com.reservation.tablereservationservice.application.reservation.schedule
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.reservation.tablereservationservice.application.payment.PaymentClient;
@@ -34,7 +32,6 @@ public class PendingReservationExpireScheduler {
 	private final PaymentClient paymentClient;
 	private final PaymentQueuePublisher paymentQueuePublisher;
 
-	@Scheduled(fixedDelayString = "${redis.reservation.pending-expire-scheduler-seconds}", timeUnit = TimeUnit.SECONDS)
 	public void expirePendingReservations() {
 		LocalDateTime threshold = LocalDateTime.now().minusSeconds(streamProperties.getPendingExpireThresholdSeconds());
 		List<Reservation> expired = reservationRepository.findPendingBefore(threshold);
@@ -65,8 +62,8 @@ public class PendingReservationExpireScheduler {
 			if (!result.isDone()) {
 				return false;
 			}
-			paymentQueuePublisher.publish(
-					PaymentQueueMessage.ofConfirmed(reservation, reservation.getIdempotencyKey(), result));
+			PaymentQueueMessage message = PaymentQueueMessage.ofConfirmed(reservation, reservation.getIdempotencyKey(), result);
+			paymentQueuePublisher.publish(message);
 			log.info("[EXPIRE_SCHEDULER] 결제 확인으로 예약 복구 reservationId={}", reservation.getReservationId());
 			return true;
 		} catch (PaymentException e) {

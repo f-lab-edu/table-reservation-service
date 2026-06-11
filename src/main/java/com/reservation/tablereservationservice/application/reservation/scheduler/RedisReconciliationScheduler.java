@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
@@ -24,7 +23,6 @@ public class RedisReconciliationScheduler {
 	private final StringRedisTemplate redisTemplate;
 	private final ReservationStreamProperties streamProperties;
 
-	@Scheduled(cron = "0 0 3 * * *") // 매일 새벽 3시
 	public void syncCapacityToRedis() {
 		List<DailySlotCapacity> capacities = dailySlotCapacityRepository.findAllFromDate(LocalDate.now());
 		if (capacities.isEmpty()) {

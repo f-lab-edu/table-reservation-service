@@ -42,7 +42,10 @@ rabbitmq:
     routing-key: reservation.cancel
     dlx: cancel-dlx
     dlq: cancel-dlq
-    recovery-threshold-minutes: 3
+
+outbox:
+  batch-size: 100      # 폴링 1회당 최대 발행 건수
+  retention-days: 7    # PUBLISHED 레코드 보관 기간(일)
 
 resilience4j:
   circuitbreaker:
