@@ -7,7 +7,7 @@ public interface OutboxRepository {
 
 	OutboxEvent save(OutboxEvent event);
 
-	List<OutboxEvent> findPending(int limit);
+	List<OutboxEvent> findPendingForUpdate(int limit);
 
 	void markPublished(List<Long> ids, LocalDateTime publishedAt);
 

@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reservation.tablereservationservice.domain.outbox.OutboxEvent;
@@ -26,8 +28,14 @@ public class OutboxPublisher {
 	private final OutboxProperties outboxProperties;
 	private final ObjectMapper objectMapper;
 
+	/**
+	 * 읽기(FOR UPDATE SKIP LOCKED) → 발행 → 보냄 표시를 한 트랜잭션으로 묶는다.
+	 * 잠금이 발행까지 유지돼 여러 인스턴스가 같은 행을 중복 발행하지 않는다.
+	 * READ COMMITTED로 낮춰 FOR UPDATE의 gap lock이 새 취소 INSERT를 막지 않게 한다.
+	 */
+	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public void publishPending() {
-		List<OutboxEvent> pending = outboxRepository.findPending(outboxProperties.getBatchSize());
+		List<OutboxEvent> pending = outboxRepository.findPendingForUpdate(outboxProperties.getBatchSize());
 		if (pending.isEmpty()) {
 			return;
 		}

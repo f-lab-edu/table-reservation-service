@@ -54,7 +54,7 @@ class OutboxPublisherTest {
 	@DisplayName("PENDING 이벤트를 발행하고 PUBLISHED로 표시한다")
 	void publishPending_publishesAndMarks() throws Exception {
 		given(outboxProperties.getBatchSize()).willReturn(100);
-		given(outboxRepository.findPending(100)).willReturn(List.of(pendingEvent(1L, 999L)));
+		given(outboxRepository.findPendingForUpdate(100)).willReturn(List.of(pendingEvent(1L, 999L)));
 
 		outboxPublisher.publishPending();
 
@@ -66,7 +66,7 @@ class OutboxPublisherTest {
 	@DisplayName("한 건 발행 실패는 격리되어 나머지는 발행되고, 실패 건은 PUBLISHED 미표시")
 	void publishPending_isolatesFailure() throws Exception {
 		given(outboxProperties.getBatchSize()).willReturn(100);
-		given(outboxRepository.findPending(100)).willReturn(List.of(pendingEvent(1L, 100L), pendingEvent(2L, 200L)));
+		given(outboxRepository.findPendingForUpdate(100)).willReturn(List.of(pendingEvent(1L, 100L), pendingEvent(2L, 200L)));
 		willThrow(new RuntimeException("broker down"))
 				.given(cancelQueuePublisher).publish(argThat((CancelQueueMessage m) -> m.getReservationId().equals(100L)));
 
@@ -79,7 +79,7 @@ class OutboxPublisherTest {
 	@DisplayName("PENDING이 없으면 아무것도 하지 않는다")
 	void publishPending_empty_noop() {
 		given(outboxProperties.getBatchSize()).willReturn(100);
-		given(outboxRepository.findPending(100)).willReturn(List.of());
+		given(outboxRepository.findPendingForUpdate(100)).willReturn(List.of());
 
 		outboxPublisher.publishPending();
 

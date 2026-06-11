@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,9 +29,10 @@ public class JpaOutboxRepository implements OutboxRepository {
 	}
 
 	@Override
-	public List<OutboxEvent> findPending(int limit) {
-		return outboxEntityRepository.findPending(PageRequest.of(0, limit))
-				.stream()
+	public List<OutboxEvent> findPendingForUpdate(int limit) {
+		Pageable pageable = PageRequest.of(0, limit);
+		List<OutboxEventEntity> entities = outboxEntityRepository.findPendingForUpdateSkipLocked(pageable);
+		return entities.stream()
 				.map(OutboxMapper.INSTANCE::toDomain)
 				.toList();
 	}
