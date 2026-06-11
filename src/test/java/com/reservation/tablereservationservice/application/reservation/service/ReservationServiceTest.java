@@ -17,7 +17,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reservation.tablereservationservice.application.notification.NotificationService;
+import com.reservation.tablereservationservice.domain.outbox.OutboxRepository;
+import com.reservation.tablereservationservice.domain.outbox.OutboxStatus;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacity;
 import com.reservation.tablereservationservice.domain.reservation.DailySlotCapacityRepository;
 import com.reservation.tablereservationservice.domain.reservation.Reservation;
@@ -37,6 +40,7 @@ import com.reservation.tablereservationservice.fixture.UserFixture;
 import com.reservation.tablereservationservice.global.exception.ErrorCode;
 import com.reservation.tablereservationservice.global.exception.ReservationException;
 import com.reservation.tablereservationservice.global.transaction.TransactionHandler;
+import com.reservation.tablereservationservice.infrastructure.payment.messaging.CancelQueueMessage;
 import com.reservation.tablereservationservice.infrastructure.redis.ReservationPublisher;
 import com.reservation.tablereservationservice.presentation.reservation.dto.ReservationRequestDto;
 
@@ -69,6 +73,12 @@ class ReservationServiceTest {
 
 	@Mock
 	private TransactionHandler transactionHandler;
+
+	@Mock
+	private OutboxRepository outboxRepository;
+
+	@Mock
+	private ObjectMapper objectMapper;
 
 	@InjectMocks
 	private ReservationService reservationService;
@@ -206,20 +216,26 @@ class ReservationServiceTest {
 	}
 
 	@Test
-	@DisplayName("예약 취소 대기 설정 성공 - CONFIRMED → CANCEL_PENDING atomic UPDATE 호출")
-	void markCancelPending_success() {
+	@DisplayName("예약 취소 대기 설정 성공 - CONFIRMED → CANCEL_PENDING atomic UPDATE + outbox INSERT")
+	void markCancelPending_success() throws Exception {
 		Long reservationId = 999L;
 		given(reservationRepository.updateStatusConditional(
 				reservationId, ReservationStatus.CONFIRMED, ReservationStatus.CANCEL_PENDING)).willReturn(1);
+		given(objectMapper.writeValueAsString(any())).willReturn("{\"reservationId\":999}");
 
 		reservationService.markCancelPending(reservationId);
 
 		verify(reservationRepository).updateStatusConditional(
 				reservationId, ReservationStatus.CONFIRMED, ReservationStatus.CANCEL_PENDING);
+		// 상태 전이와 같은 트랜잭션에서 outbox 이벤트가 PENDING으로 저장된다
+		verify(outboxRepository).save(argThat(event ->
+				event.getAggregateId().equals(reservationId)
+						&& event.getEventType().equals(CancelQueueMessage.OUTBOX_EVENT_TYPE)
+						&& event.getStatus() == OutboxStatus.PENDING));
 	}
 
 	@Test
-	@DisplayName("예약 취소 대기 설정 실패 - 다른 요청이 선점 시 409")
+	@DisplayName("예약 취소 대기 설정 실패 - 다른 요청이 선점 시 409, outbox 미저장")
 	void markCancelPending_fail_concurrencyError() {
 		Long reservationId = 999L;
 		given(reservationRepository.updateStatusConditional(
@@ -229,6 +245,8 @@ class ReservationServiceTest {
 				.isInstanceOf(ReservationException.class)
 				.satisfies(ex -> assertThat(((ReservationException)ex).getErrorCode())
 						.isEqualTo(ErrorCode.RESERVATION_CONCURRENCY_ERROR));
+
+		verify(outboxRepository, never()).save(any());
 	}
 
 	@Test
